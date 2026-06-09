@@ -32,6 +32,7 @@
   --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4);
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}   /* sonst überschreibt z. B. .reminder{display:flex} das hidden-Attribut */
 html,body{margin:0;padding:0}
 body{
   background:var(--bg); color:var(--text);
@@ -196,8 +197,11 @@ dialog::backdrop{background:rgba(15,23,42,.45)}
 .btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
 .menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px;border-bottom:1px solid var(--border)}
 .menu-item:last-of-type{border-bottom:none}
+#mExportCsv{border-bottom:none}
 .menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}
 .switch{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--border)}
+#reminderRow{border-bottom:none}
+#reminderHint{margin:6px 0 0;padding:2px 4px 12px;border-bottom:1px solid var(--border)}
 .switch select{padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
 input[type=checkbox].sw{width:46px;height:28px;appearance:none;background:var(--border);border-radius:999px;position:relative;transition:.2s;flex:0 0 auto}
 input[type=checkbox].sw:checked{background:var(--primary)}
@@ -206,6 +210,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 
 /* Schwellenwerte im Menü */
 .thr{padding:10px 4px;border-bottom:1px solid var(--border)}
+.thr.is-disabled{opacity:.5;pointer-events:none}
 .thr-head{font-size:.82rem;color:var(--muted);margin-bottom:8px}
 .thr-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;align-items:center}
 .thr-col{font-size:.75rem;color:var(--muted);text-align:center}
@@ -222,6 +227,16 @@ input[type=checkbox].sw:checked::after{left:21px}
 .sec-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:16px 4px 4px}
 .sec-h:first-child{margin-top:4px}
 
+/* Backup-Erinnerung */
+.rem-int{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.9rem}
+.rem-int input{width:60px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);text-align:center;font-size:1rem}
+.reminder{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:color-mix(in srgb,var(--cat-y) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--cat-y) 45%,var(--border));border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 14px;margin-bottom:14px}
+.reminder .ic{width:22px;height:22px;color:var(--cat-y);flex:0 0 auto}
+.rem-msg{flex:1;min-width:150px;font-size:.9rem}
+.rem-actions{display:flex;gap:8px;margin-left:auto}
+.rem-btn{padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.88rem}
+.rem-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+
 /* ---- Toast ---- */
 .toast{
   position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
@@ -236,11 +251,20 @@ input[type=checkbox].sw:checked::after{left:21px}
 <header class="app">
   <h1><span class="logo" id="logo"></span> Blutdruck</h1>
   <button class="icon-btn" id="menuBtn" aria-label="Menü">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 12h7M4 18h13"/><circle cx="18" cy="6" r="2.2"/><circle cx="14" cy="12" r="2.2"/><circle cx="20" cy="18" r="2.2"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
   </button>
 </header>
 
 <main>
+  <div class="reminder" id="reminder" hidden>
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+    <div class="rem-msg" id="reminderMsg"></div>
+    <div class="rem-actions">
+      <button class="rem-btn" id="reminderLater" type="button">Später</button>
+      <button class="rem-btn primary" id="reminderSave" type="button">Jetzt sichern</button>
+    </div>
+  </div>
+
   <!-- ============ ERFASSEN ============ -->
   <section class="tab active" id="tab-capture">
     <div class="card capture">
@@ -331,7 +355,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 
 <nav class="bottom">
   <button class="navbtn active" data-tab="capture">
-    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>Erfassen</button>
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/><path d="M12 7.5v5M9.5 10h5"/></svg>Erfassen</button>
   <button class="navbtn" data-tab="table">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>Tabelle</button>
   <button class="navbtn" data-tab="chart">
@@ -369,7 +393,11 @@ input[type=checkbox].sw:checked::after{left:21px}
     <button class="menu-item" id="mExportJson">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
       Backup speichern (JSON)</button>
-    <div class="switch"><span>Auto-Backup beim Speichern</span><input type="checkbox" class="sw" id="setAutoBackup"></div>
+    <div class="switch" id="reminderRow">
+      <span>Backup-Erinnerung</span>
+      <span class="rem-int"><span>alle</span><input type="number" inputmode="numeric" min="0" id="setReminderDays"><span>Tage</span></span>
+    </div>
+    <p class="hint" id="reminderHint">Erinnert dich, wenn es seit so vielen Tagen ungesicherte Änderungen gibt. 0 = aus.</p>
 
     <div class="sec-h">Wiederherstellen</div>
     <button class="menu-item" id="mImport">
@@ -378,6 +406,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 
     <div class="sec-h">Anzeige</div>
     <div class="switch"><span>Werte-Ampel (Tabelle)</span><input type="checkbox" class="sw" id="setColor"></div>
+    <div class="switch"><span>Schwellenwert-Linien im Diagramm</span><input type="checkbox" class="sw" id="setGuide"></div>
     <div class="thr" id="thrBlock">
       <div class="thr-head">Schwellenwerte für Gelb / Rot</div>
       <div class="thr-grid">
@@ -391,7 +420,6 @@ input[type=checkbox].sw:checked::after{left:21px}
       </div>
       <button class="btn-text" id="thrReset" type="button" style="padding:8px 0 0">Standardwerte wiederherstellen</button>
     </div>
-    <div class="switch"><span>Schwellenwert-Linien im Diagramm</span><input type="checkbox" class="sw" id="setGuide"></div>
     <div class="switch"><span>Darstellung</span>
       <div class="seg" id="themeSeg" role="group" aria-label="Darstellung">
         <button type="button" class="seg-btn" data-theme="auto" aria-label="Automatisch" title="Automatisch">
@@ -449,7 +477,8 @@ function toast(msg,type){
 
 /* ---------- Speicherung ---------- */
 const LS_KEY='bp_entries', LS_SET='bp_settings';
-const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',autoBackup:true,
+const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',
+  reminderDays:3,firstDirtyAt:null,snoozeUntil:0,
   thr:{sysY:130,sysR:140,diaY:85,diaR:90}};
 
 function loadEntries(){ try{const a=JSON.parse(localStorage.getItem(LS_KEY)||'[]');return Array.isArray(a)?a:[];}catch{return[];} }
@@ -464,9 +493,9 @@ function saveSettings(){ localStorage.setItem(LS_SET,JSON.stringify(settings)); 
 let entries=loadEntries();
 let settings=loadSettings();
 
-function addEntry(e){ entries.push(e); saveEntries(); }
-function updateEntry(id,patch){ const i=entries.findIndex(x=>x.id===id); if(i>=0){entries[i]={...entries[i],...patch};saveEntries();} }
-function removeEntry(id){ entries=entries.filter(x=>x.id!==id); saveEntries(); }
+function addEntry(e){ entries.push(e); saveEntries(); markDirty(); }
+function updateEntry(id,patch){ const i=entries.findIndex(x=>x.id===id); if(i>=0){entries[i]={...entries[i],...patch};saveEntries();markDirty();} }
+function removeEntry(id){ entries=entries.filter(x=>x.id!==id); saveEntries(); markDirty(); }
 
 /* ---------- Parser ---------- */
 const RANGES={sys:[70,260],dia:[40,160],pulse:[30,220]};
@@ -537,8 +566,8 @@ function saveCapture(){
   addEntry({id:uid(),ts:new Date().toISOString(),sys,dia,pulse,note:$('#noteInput').value.trim()});
   input.value=''; $('#noteInput').value=''; setNote(false); updatePreview();
   renderAll();
-  if(settings.autoBackup){ exportJSON(true); toast('Gespeichert ✓ · Backup erstellt'); }
-  else toast('Gespeichert ✓');
+  toast('Gespeichert ✓');
+  updateReminder();
   input.focus();
 }
 function setNote(show){
@@ -728,10 +757,11 @@ function exportCSV(){
   download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`blutdruck-${todayStr()}.csv`);
   toast('CSV exportiert ✓');
 }
-function exportJSON(silent){
-  if(!entries.length){ if(!silent) toast('Keine Daten zum Sichern','err'); return; }
+function exportJSON(){
+  if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
   download(new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}),`blutdruck-backup-${stampDateTime()}.json`);
-  if(!silent) toast('Backup gespeichert ✓');
+  markBackedUp();
+  toast('Backup gespeichert ✓');
 }
 function importJSON(file){
   const r=new FileReader();
@@ -744,7 +774,7 @@ function importJSON(file){
       if(!valid.length) throw 0;
       const map=new Map(entries.map(e=>[e.id,e]));
       valid.forEach(e=>map.set(e.id,e));
-      entries=[...map.values()]; saveEntries(); refreshData();
+      entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
       toast(`${valid.length} Einträge importiert ✓`);
     }catch{ toast('Import fehlgeschlagen: ungültige Datei','err'); }
   };
@@ -755,6 +785,28 @@ $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJS
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
 
+/* ---------- Backup-Erinnerung ---------- */
+const DAY=86400000;
+function markDirty(){ if(!settings.firstDirtyAt){ settings.firstDirtyAt=new Date().toISOString(); saveSettings(); } }
+function markBackedUp(){ settings.firstDirtyAt=null; settings.snoozeUntil=0; saveSettings(); updateReminder(); }
+function reminderDaysDue(){
+  const d=+settings.reminderDays||0;
+  if(d<=0||!entries.length||!settings.firstDirtyAt) return 0;
+  if(Date.now()<(settings.snoozeUntil||0)) return 0;
+  const days=Math.floor((Date.now()-new Date(settings.firstDirtyAt).getTime())/DAY);
+  return days>=d?days:0;
+}
+function updateReminder(){
+  const days=reminderDaysDue(), el=$('#reminder');
+  if(days){
+    $('#reminderMsg').textContent=`Seit ${days} ${days===1?'Tag':'Tagen'} ungesicherte Änderungen – jetzt ein Backup speichern?`;
+    el.hidden=false;
+  } else el.hidden=true;
+}
+$('#reminderSave').addEventListener('click',()=>exportJSON());
+$('#reminderLater').addEventListener('click',()=>{ settings.snoozeUntil=Date.now()+DAY; saveSettings(); updateReminder(); });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) updateReminder(); });
+
 /* ---------- Einstellungen / Menü ---------- */
 function applyTheme(){ const t=settings.theme; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); }
 function applyThrUI(){
@@ -762,19 +814,29 @@ function applyThrUI(){
   $('#thrSysY').value=t.sysY; $('#thrDiaY').value=t.diaY;
   $('#thrSysR').value=t.sysR; $('#thrDiaR').value=t.diaR;
 }
+function updateThrEnabled(){              // Schwellenwerte nur relevant, wenn Ampel oder Diagramm-Linien aktiv
+  const on=settings.colorDots||settings.guideLines;
+  $('#thrBlock').classList.toggle('is-disabled',!on);
+  ['thrSysY','thrDiaY','thrSysR','thrDiaR','thrReset'].forEach(id=>{ $('#'+id).disabled=!on; });
+}
 function applyThemeSeg(){ $$('#themeSeg .seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.theme===settings.theme)); }
 function applySettingsUI(){
   $('#setColor').checked=settings.colorDots;
   $('#setGuide').checked=settings.guideLines;
-  $('#setAutoBackup').checked=settings.autoBackup;
+  $('#setReminderDays').value=settings.reminderDays;
   applyThemeSeg();
   applyThrUI();
+  updateThrEnabled();
 }
 $('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); $('#menuDlg').showModal(); });
 $('#menuClose').addEventListener('click',()=>$('#menuDlg').close());
-$('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); renderTable(); });
-$('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); if(currentTab==='chart') renderChart(); });
-$('#setAutoBackup').addEventListener('change',e=>{ settings.autoBackup=e.target.checked; saveSettings(); });
+$('#menuDlg').addEventListener('click',e=>{ const d=e.currentTarget,r=d.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) d.close(); });
+$('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); updateThrEnabled(); renderTable(); });
+$('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); updateThrEnabled(); if(currentTab==='chart') renderChart(); });
+$('#setReminderDays').addEventListener('input',e=>{
+  let v=parseInt(e.target.value,10); if(!Number.isFinite(v)||v<0) v=0;
+  settings.reminderDays=v; saveSettings(); updateReminder();
+});
 $$('#themeSeg .seg-btn').forEach(b=>b.addEventListener('click',()=>{ settings.theme=b.dataset.theme; saveSettings(); applyTheme(); applyThemeSeg(); if(currentTab==='chart') renderChart(); }));
 [['thrSysY','sysY'],['thrDiaY','diaY'],['thrSysR','sysR'],['thrDiaR','diaR']].forEach(([id,key])=>{
   $('#'+id).addEventListener('input',e=>{
@@ -822,7 +884,7 @@ function injectPWA(){
 function init(){
   injectPWA(); applyTheme(); applySettingsUI();
   syncFilterInputs(); setActiveRangeChip(0);
-  updatePreview(); renderTable();
+  updatePreview(); renderTable(); updateReminder();
   showTab('capture');
 }
 init();
