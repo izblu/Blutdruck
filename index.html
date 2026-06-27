@@ -393,6 +393,12 @@ input[type=checkbox].sw:checked::after{left:21px}
     <button class="menu-item" id="mExportJson">
       <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
       Backup speichern (JSON)</button>
+    <button class="menu-item" id="mShare">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+      Backup teilen</button>
+    <button class="menu-item" id="mLinkFile">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+      Backup-Datei verknüpfen (autom.)</button>
     <div class="switch" id="reminderRow">
       <span>Backup-Erinnerung</span>
       <span class="rem-int"><span>alle</span><input type="number" inputmode="numeric" min="0" id="setReminderDays"><span>Tage</span></span>
@@ -481,8 +487,65 @@ const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',
   reminderDays:3,firstDirtyAt:null,snoozeUntil:0,
   thr:{sysY:130,sysR:140,diaY:85,diaR:90}};
 
+/* IndexedDB ist der robuste Hauptspeicher (überlebt Speicherdruck/ITP deutlich besser
+   als localStorage und fasst viel mehr Daten). localStorage bleibt als Spiegel/Fallback. */
+const DB_NAME='blutdruck', DB_VER=1, STORE_E='entries', STORE_M='meta';
+let _db=null;
+function openDB(){
+  return new Promise((res,rej)=>{
+    if(!('indexedDB' in window)){ rej(new Error('no-indexeddb')); return; }
+    const rq=indexedDB.open(DB_NAME,DB_VER);
+    rq.onupgradeneeded=()=>{
+      const db=rq.result;
+      if(!db.objectStoreNames.contains(STORE_E)) db.createObjectStore(STORE_E,{keyPath:'id'});
+      if(!db.objectStoreNames.contains(STORE_M)) db.createObjectStore(STORE_M); // für Backup-Datei-Handle
+    };
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error);
+  });
+}
+function idbAll(){
+  return new Promise((res,rej)=>{
+    const rq=_db.transaction(STORE_E,'readonly').objectStore(STORE_E).getAll();
+    rq.onsuccess=()=>res(rq.result||[]); rq.onerror=()=>rej(rq.error);
+  });
+}
+function idbWriteAll(list){
+  return new Promise((res,rej)=>{
+    const tx=_db.transaction(STORE_E,'readwrite'), st=tx.objectStore(STORE_E);
+    st.clear(); list.forEach(e=>st.put(e)); // kompletter Stand in einer Transaktion
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+  });
+}
+function idbGetMeta(key){
+  return new Promise((res,rej)=>{
+    if(!_db){ res(null); return; }
+    const rq=_db.transaction(STORE_M,'readonly').objectStore(STORE_M).get(key);
+    rq.onsuccess=()=>res(rq.result??null); rq.onerror=()=>rej(rq.error);
+  });
+}
+function idbSetMeta(key,val){
+  return new Promise((res,rej)=>{
+    if(!_db){ rej(new Error('no-db')); return; }
+    const tx=_db.transaction(STORE_M,'readwrite'); tx.objectStore(STORE_M).put(val,key);
+    tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error);
+  });
+}
+
+/* Browser bitten, den Speicher dauerhaft zu behalten (Schutz gegen Auto-Löschung/Eviction). */
+async function requestPersistence(){
+  try{
+    if(navigator.storage && navigator.storage.persist){
+      if(!(await navigator.storage.persisted())) await navigator.storage.persist();
+    }
+  }catch{}
+}
+
 function loadEntries(){ try{const a=JSON.parse(localStorage.getItem(LS_KEY)||'[]');return Array.isArray(a)?a:[];}catch{return[];} }
-function saveEntries(){ localStorage.setItem(LS_KEY,JSON.stringify(entries)); }
+function saveEntries(){
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(entries)); }catch{}   // Spiegel/Fallback
+  if(_db) idbWriteAll(entries).then(scheduleAutoBackup).catch(()=>{});  // robuster Hauptspeicher
+}
 function loadSettings(){
   let s; try{ s=Object.assign({},SET_DEFAULT,JSON.parse(localStorage.getItem(LS_SET)||'{}')); }catch{ s={...SET_DEFAULT}; }
   s.thr=Object.assign({},SET_DEFAULT.thr,s.thr||{}); // Schwellenwerte immer vollständig halten
@@ -490,8 +553,24 @@ function loadSettings(){
 }
 function saveSettings(){ localStorage.setItem(LS_SET,JSON.stringify(settings)); }
 
-let entries=loadEntries();
+let entries=[];
 let settings=loadSettings();
+
+/* Beim Start: IndexedDB öffnen, Daten laden, ggf. einmalig aus localStorage migrieren. */
+async function initStorage(){
+  try{
+    _db=await openDB();
+    const fromDb=await idbAll();
+    if(fromDb.length){ entries=fromDb; }
+    else{
+      const fromLs=loadEntries();          // einmalige Migration aus localStorage
+      entries=fromLs;
+      if(fromLs.length) await idbWriteAll(fromLs);
+    }
+  }catch{
+    entries=loadEntries();                  // kompletter Fallback ohne IndexedDB
+  }
+}
 
 function addEntry(e){ entries.push(e); saveEntries(); markDirty(); }
 function updateEntry(id,patch){ const i=entries.findIndex(x=>x.id===id); if(i>=0){entries[i]={...entries[i],...patch};saveEntries();markDirty();} }
@@ -757,12 +836,62 @@ function exportCSV(){
   download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`blutdruck-${todayStr()}.csv`);
   toast('CSV exportiert ✓');
 }
+function backupName(){ return `blutdruck-backup-${stampDateTime()}.json`; }
+function backupBlob(){ return new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}); }
 function exportJSON(){
   if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
-  download(new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}),`blutdruck-backup-${stampDateTime()}.json`);
+  download(backupBlob(),backupName());
   markBackedUp();
   toast('Backup gespeichert ✓');
 }
+
+/* Backup über das native Teilen-Menü weitergeben (Cloud/Mail/Messenger); Fallback: Download. */
+async function shareBackup(){
+  if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
+  try{
+    const file=new File([backupBlob()],backupName(),{type:'application/json'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Blutdruck-Backup'});
+      markBackedUp(); toast('Backup geteilt ✓');
+    }else{ exportJSON(); }              // Fallback: normaler Download
+  }catch(e){ if(e&&e.name!=='AbortError') toast('Teilen fehlgeschlagen','err'); }
+}
+
+/* Backup-Datei einmal wählen, danach immer dieselbe Datei (optional automatisch) überschreiben.
+   Nur Chromium (Chrome/Edge/Android); sonst per Feature-Detection ausgeblendet. */
+const FS_SUPPORTED=typeof window.showSaveFilePicker==='function';
+async function chooseBackupFile(){
+  if(!FS_SUPPORTED){ toast('Von diesem Browser nicht unterstützt','err'); return; }
+  try{
+    const handle=await window.showSaveFilePicker({
+      suggestedName:'blutdruck-backup.json',
+      types:[{description:'JSON',accept:{'application/json':['.json']}}]
+    });
+    await idbSetMeta('backupHandle',handle);
+    await writeToHandle(handle);
+    toast('Backup-Datei verknüpft ✓');
+  }catch(e){ if(e&&e.name!=='AbortError') toast('Verknüpfen fehlgeschlagen','err'); }
+}
+async function writeToHandle(handle){
+  const w=await handle.createWritable();
+  await w.write(backupBlob()); await w.close();
+  markBackedUp();
+}
+async function ensurePerm(handle){
+  const opt={mode:'readwrite'};
+  if(await handle.queryPermission(opt)==='granted') return true;
+  return (await handle.requestPermission(opt))==='granted';
+}
+async function autoBackupIfLinked(){
+  if(!FS_SUPPORTED) return;
+  try{
+    const handle=await idbGetMeta('backupHandle');
+    if(!handle || !(await ensurePerm(handle))) return;
+    await writeToHandle(handle);
+  }catch{}
+}
+let _abT=0;
+function scheduleAutoBackup(){ clearTimeout(_abT); _abT=setTimeout(autoBackupIfLinked,1500); }
 function importJSON(file){
   const r=new FileReader();
   r.onload=()=>{
@@ -782,6 +911,12 @@ function importJSON(file){
 }
 $('#mExportCsv').addEventListener('click',()=>{ $('#menuDlg').close(); exportCSV(); });
 $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJSON(); });
+$('#mShare').addEventListener('click',()=>{ $('#menuDlg').close(); shareBackup(); });
+$('#mLinkFile').addEventListener('click',()=>{ $('#menuDlg').close(); chooseBackupFile(); });
+// Nicht unterstützte Optionen ausblenden (Progressive Enhancement)
+const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.json',{type:'application/json'})]}); }catch{ return false; } })());
+if(!SHARE_SUPPORTED) $('#mShare').hidden=true;
+if(!FS_SUPPORTED) $('#mLinkFile').hidden=true;
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
 
@@ -874,8 +1009,10 @@ function injectPWA(){
 }
 
 /* ---------- Start ---------- */
-function init(){
+async function init(){
   injectPWA(); applyTheme(); applySettingsUI();
+  await requestPersistence();          // Speicher dauerhaft anfordern
+  await initStorage();                 // Daten aus IndexedDB laden / migrieren
   syncFilterInputs(); setActiveRangeChip(0);
   updatePreview(); renderTable(); updateReminder();
   showTab('capture');
