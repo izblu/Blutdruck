@@ -4,6 +4,9 @@ Eine kleine Single-File-PWA zum Erfassen von Blutdruck-Werten. Alles steckt in
 [index.html](index.html) (HTML + CSS + JavaScript), dazu `sw.js` (Offline) und
 `manifest.webmanifest` (Installation). Kein Build, kein Framework, keine Abhängigkeiten.
 
+## Sprache
+- Mit dem Nutzer immer auf **Deutsch** kommunizieren
+
 ## Zusammenarbeit / Erklärstil
 Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - Erklärungen **einfach und verständlich** halten, nah am Anwender.
@@ -24,13 +27,20 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - **Speicher:** Messwerte liegen in der Browser-Datenbank (IndexedDB), mit `localStorage` als
   Spiegel/Fallback und einmaliger automatischer Migration. Beim Start wird dauerhafter Speicher
   angefordert (`navigator.storage.persist()`), Schutz gegen automatisches Löschen (Eviction/ITP).
-- **Backup:** „Backup speichern" (Download), „Backup teilen" (Teilen-Menü / Web Share API),
-  „Auto-Backup in Datei" (immer dieselbe Datei via File System Access API),
+- **Backup:** „Backup speichern" (Download), „Backup teilen" (Teilen-Menü / Web Share API; klappt
+  das Teilen nicht, fragt ein Dialog, ob stattdessen heruntergeladen werden soll),
+  „Auto-Backup in Datei" (immer dieselbe Datei via File System Access API). Bei verknüpfter Datei
+  werden **Name** (nur der Dateiname – Browser geben aus Sicherheitsgründen keinen vollständigen
+  Pfad her und können Datei/Ordner nicht im Datei-Manager öffnen) und die Aktionen „Jetzt sichern",
+  „Datei ändern", „Verknüpfung lösen" gezeigt.
   „Backup wiederherstellen" (JSON laden, mit Statistik „X neu, Y aktualisiert").
   „Als CSV exportieren (Excel)" für die Auswertung.
 - **Menü:** als **klappbare Abschnitte** (Daten & Backup, Anzeige, Verwalten) plus „Anleitung".
   Das Menü-Fenster ist schmaler als der Bildschirm, hat eine eigene Hintergrundfarbe (`--menu-bg`)
-  und lässt ringsum Rand zum Raustippen.
+  und lässt ringsum Rand zum Raustippen. **Keine Trennlinien** mehr – der aufgeklappte Abschnitt
+  hebt sich als **weiße Karte** mit Schatten ab. Das Fenster hängt oben fest (kein „Springen" beim
+  Auf-/Zuklappen) und schließt nur bei echtem Tippen auf die Backdrop-Fläche (`e.target===dialog`).
+  Aus der Anleitung führt ein „‹ Zurück"-Button wieder ins Menü; Schließen-Buttons heißen „Menü schließen".
 - **Nicht unterstützte Funktionen** werden nicht versteckt, sondern **ausgegraut** mit kurzer
   Begründung (z. B. „Auf diesem Gerät nicht verfügbar").
 - **Verwalten:** „Speicher-Status" (dauerhaft? wie viel belegt?) und „Alle Daten löschen"

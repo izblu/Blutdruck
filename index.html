@@ -17,19 +17,20 @@
   --cat-g:#16a34a; --cat-y:#d97706; --cat-r:#dc2626;
   --danger:#dc2626;
   --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.06);
+  --panel-shadow:0 4px 14px rgba(16,24,40,.10);
   --radius:14px;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
     --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
-    --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4);
+    --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
   }
 }
 :root[data-theme="dark"]{
   --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
   --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
-  --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4);
+  --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}   /* sonst überschreibt z. B. .reminder{display:flex} das hidden-Attribut */
@@ -184,7 +185,7 @@ dialog{
   background:var(--surface);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.3);
 }
 /* Menü & Anleitung heben sich farblich von der App ab und lassen ringsum Rand zum Raustippen */
-#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border)}
+#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border);margin-top:5vh;margin-bottom:auto}
 dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-head{padding:16px 18px 0;font-size:1.1rem;font-weight:700}
 .dlg-body{padding:14px 18px}
@@ -197,25 +198,30 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .btn-text{background:none;border:none;color:var(--primary);padding:10px;font-weight:600}
 .btn-danger{background:none;border:none;color:var(--danger);padding:10px;font-weight:600}
 .btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
-.menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px;border-bottom:1px solid var(--border)}
-.menu-item:last-of-type{border-bottom:none}
+.menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px}
 .menu-item:disabled{opacity:.5;cursor:default}
 .menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}
 .reason{display:block;font-size:11px;color:var(--muted);margin:-4px 0 8px 36px}
+/* Auto-Backup-Datei: Name + Aktionen */
+.lf-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px 36px}
+.lf-btn{padding:7px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.85rem}
 /* Aufklappbare Abschnitte */
-.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px;font-weight:600;border-bottom:1px solid var(--border)}
+.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 8px;font-weight:600}
 .acc-head .lbl{display:flex;align-items:center;gap:12px}
 .acc-head .ic{width:22px;height:22px;flex:0 0 auto;color:var(--primary)}
 .acc-head .chev{width:20px;height:20px;flex:0 0 auto;color:var(--muted);transition:transform .2s}
 .acc-head[aria-expanded="true"] .chev{transform:rotate(180deg)}
 .acc-body{display:none;padding-left:4px}
 .acc-body.open{display:block}
+/* Aufgeklappter Abschnitt hebt sich als Karte ab (statt Trennlinien) */
+.acc-sec.open{background:var(--surface);border-radius:12px;box-shadow:var(--panel-shadow);margin:4px 0}
+.acc-sec.open .acc-head{padding:14px}
+.acc-sec.open .acc-body{padding:2px 14px 12px}
 /* Anleitung-Pop-up */
 .help-p{margin:0 0 12px;font-size:.95rem;line-height:1.5}
 .help-p code{background:var(--surface-2);padding:1px 6px;border-radius:6px;font-family:ui-monospace,monospace}
-.switch{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--border)}
-#reminderRow{border-bottom:none}
-#reminderHint{margin:6px 0 0;padding:2px 4px 12px;border-bottom:1px solid var(--border)}
+.switch{display:flex;align-items:center;justify-content:space-between;padding:12px 4px}
+#reminderHint{margin:6px 0 0;padding:2px 4px 12px}
 .switch select{padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
 input[type=checkbox].sw{width:46px;height:28px;appearance:none;background:var(--border);border-radius:999px;position:relative;transition:.2s;flex:0 0 auto}
 input[type=checkbox].sw:checked{background:var(--primary)}
@@ -223,7 +229,7 @@ input[type=checkbox].sw::after{content:"";position:absolute;width:22px;height:22
 input[type=checkbox].sw:checked::after{left:21px}
 
 /* Schwellenwerte im Menü */
-.thr{padding:10px 4px;border-bottom:1px solid var(--border)}
+.thr{padding:10px 4px}
 .thr.is-disabled{opacity:.5;pointer-events:none}
 .thr-head{font-size:.82rem;color:var(--muted);margin-bottom:8px}
 .thr-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;align-items:center}
@@ -400,6 +406,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 <dialog id="menuDlg">
   <div class="dlg-head">Menü</div>
   <div class="dlg-body">
+    <div class="acc-sec">
     <button class="acc-head" type="button" aria-expanded="false" aria-controls="accData">
       <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z"/></svg>Daten &amp; Backup</span>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -416,6 +423,14 @@ input[type=checkbox].sw:checked::after{left:21px}
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
         Auto-Backup in Datei</button>
       <small class="reason" id="mLinkFileReason" hidden></small>
+      <div class="lf-box" id="linkFileBox" hidden>
+        <small class="reason" id="linkFileName"></small>
+        <div class="lf-actions">
+          <button class="lf-btn" id="mLinkWrite" type="button">Jetzt sichern</button>
+          <button class="lf-btn" id="mLinkChange" type="button">Datei ändern</button>
+          <button class="lf-btn" id="mLinkUnlink" type="button">Verknüpfung lösen</button>
+        </div>
+      </div>
       <button class="menu-item" id="mImport">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v4h4"/></svg>
         Backup wiederherstellen</button>
@@ -428,7 +443,9 @@ input[type=checkbox].sw:checked::after{left:21px}
       </div>
       <p class="hint" id="reminderHint">Erinnert dich, wenn es seit so vielen Tagen ungesicherte Änderungen gibt. 0 = aus.</p>
     </div>
+    </div>
 
+    <div class="acc-sec">
     <button class="acc-head" type="button" aria-expanded="false" aria-controls="accView">
       <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M2 14h4M10 8h4M18 16h4"/></svg>Anzeige</span>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -463,6 +480,8 @@ input[type=checkbox].sw:checked::after{left:21px}
       </div>
     </div>
     </div>
+    </div>
+    <div class="acc-sec">
     <button class="acc-head" type="button" aria-expanded="false" aria-controls="accManage">
       <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Verwalten</span>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -473,12 +492,13 @@ input[type=checkbox].sw:checked::after{left:21px}
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--danger)"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
         Alle Daten löschen</button>
     </div>
+    </div>
     <button class="acc-head" id="mHelp" type="button">
       <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.4c0 1.6-2.2 2-2.4 3.1"/><path d="M12 17h.01"/></svg>Anleitung</span>
       <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
     </button>
   </div>
-  <div class="dlg-actions"><span class="grow"></span><button class="btn-fill" id="menuClose" type="button">Fertig</button></div>
+  <div class="dlg-actions"><span class="grow"></span><button class="btn-fill" id="menuClose" type="button">Menü schließen</button></div>
 </dialog>
 
 <!-- Anleitung / Hilfe -->
@@ -492,7 +512,7 @@ input[type=checkbox].sw:checked::after{left:21px}
     <p class="help-p"><b>Backup (wichtig!):</b> Deine Daten liegen nur auf diesem Gerät. Mach regelmäßig ein Backup über „Backup teilen" oder „Backup speichern" – dann sind sie sicher, falls das Gerät verloren geht.</p>
     <p class="help-p"><b>Tipp:</b> Lege die App auf den Home-Bildschirm (auf dem iPhone über Teilen → „Zum Home-Bildschirm"). Dann bleiben deine Daten dauerhaft erhalten.</p>
   </div>
-  <div class="dlg-actions"><span class="grow"></span><button class="btn-fill" id="helpClose" type="button">Verstanden</button></div>
+  <div class="dlg-actions"><button class="btn-text" id="helpBack" type="button">‹ Zurück</button><span class="grow"></span><button class="btn-fill" id="helpClose" type="button">Menü schließen</button></div>
 </dialog>
 
 <input type="file" id="importFile" accept="application/json,.json" style="display:none">
@@ -904,10 +924,16 @@ async function shareBackup(){
   try{
     const file=new File([backupBlob()],backupName(),{type:'application/json'});
     if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:'Blutdruck-Backup'});
+      await navigator.share({files:[file]});   // ohne title – manche Ziele lehnen die Kombi sonst ab
       markBackedUp(); toast('Backup geteilt ✓');
     }else{ exportJSON(); }              // Fallback: normaler Download
-  }catch(e){ if(e&&e.name!=='AbortError') toast('Teilen fehlgeschlagen','err'); }
+  }catch(e){
+    if(e&&e.name==='AbortError') return;       // Nutzer hat das Teilen abgebrochen
+    // Teilen ging nicht – Nutzer aktiv entscheiden lassen, ob stattdessen heruntergeladen wird
+    if(confirm('Teilen hat nicht geklappt. Stattdessen als Datei speichern (Download)?')){
+      download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert ✓');
+    }
+  }
 }
 
 /* Backup-Datei einmal wählen, danach immer dieselbe Datei (optional automatisch) überschreiben.
@@ -979,12 +1005,37 @@ async function clearAllData(){
 $('#mExportCsv').addEventListener('click',()=>{ $('#menuDlg').close(); exportCSV(); });
 $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJSON(); });
 $('#mShare').addEventListener('click',()=>{ $('#menuDlg').close(); shareBackup(); });
-$('#mLinkFile').addEventListener('click',()=>{ $('#menuDlg').close(); chooseBackupFile(); });
+$('#mLinkFile').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
 // Nicht unterstützte Optionen sichtbar lassen, aber deaktivieren + kurzen Grund anzeigen
 const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.json',{type:'application/json'})]}); }catch{ return false; } })());
 function disableMenuItem(btnId,reasonId,text){ const b=$('#'+btnId); if(b) b.disabled=true; const r=$('#'+reasonId); if(r){ r.textContent=text; r.hidden=false; } }
 if(!SHARE_SUPPORTED) disableMenuItem('mShare','mShareReason','Dein Browser kann das Teilen nicht.');
 if(!FS_SUPPORTED) disableMenuItem('mLinkFile','mLinkFileReason','Auf diesem Gerät nicht verfügbar.');
+// Auto-Backup-Datei: Name der verknüpften Datei + Aktionen anzeigen/aktualisieren.
+// (Browser geben aus Sicherheitsgründen nur den Dateinamen her – keinen vollständigen Pfad,
+//  und können die Datei/den Ordner nicht im Datei-Manager öffnen.)
+async function refreshLinkFileUI(){
+  const box=$('#linkFileBox'); if(!box) return;
+  if(!FS_SUPPORTED){ box.hidden=true; return; }
+  try{
+    const handle=await idbGetMeta('backupHandle');
+    if(handle){ $('#linkFileName').textContent='Verknüpft: '+handle.name; box.hidden=false; }
+    else box.hidden=true;
+  }catch{ box.hidden=true; }
+}
+$('#mLinkWrite').addEventListener('click',async ()=>{
+  try{
+    const handle=await idbGetMeta('backupHandle');
+    if(!handle){ refreshLinkFileUI(); return; }
+    if(!(await ensurePerm(handle))){ toast('Keine Schreibrechte für die Datei','err'); return; }
+    await writeToHandle(handle); toast('Backup gespeichert ✓');
+  }catch{ toast('Sichern fehlgeschlagen','err'); }
+});
+$('#mLinkChange').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
+$('#mLinkUnlink').addEventListener('click',async ()=>{
+  try{ await idbSetMeta('backupHandle',null); }catch{}
+  refreshLinkFileUI(); toast('Verknüpfung gelöst');
+});
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
 $('#mClearAll').addEventListener('click',clearAllData);
@@ -994,6 +1045,7 @@ $$('#menuDlg .acc-head[aria-controls]').forEach(h=>h.addEventListener('click',()
   const open=h.getAttribute('aria-expanded')==='true';
   h.setAttribute('aria-expanded',String(!open));
   $('#'+h.getAttribute('aria-controls')).classList.toggle('open',!open);
+  h.closest('.acc-sec').classList.toggle('open',!open);   // Karten-Optik des offenen Abschnitts
 }));
 // Speicher-Status: dauerhaft gesichert? wie viel belegt?
 async function updateStorageStatus(){
@@ -1057,11 +1109,14 @@ function applySettingsUI(){
   applyThrUI();
   updateThrEnabled();
 }
-$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); updateStorageStatus(); $('#menuDlg').showModal(); });
+$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); updateStorageStatus(); refreshLinkFileUI(); $('#menuDlg').showModal(); });
 $('#menuClose').addEventListener('click',()=>$('#menuDlg').close());
-$('#menuDlg').addEventListener('click',e=>{ const d=e.currentTarget,r=d.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) d.close(); });
+// Schließen nur, wenn der Klick die Backdrop-Fläche (das Dialog-Element selbst) trifft –
+// robust gegen das Neu-Zentrieren beim Auf-/Zuklappen der Abschnitte.
+$('#menuDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
 $('#helpClose').addEventListener('click',()=>$('#helpDlg').close());
-$('#helpDlg').addEventListener('click',e=>{ const d=e.currentTarget,r=d.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) d.close(); });
+$('#helpBack').addEventListener('click',()=>{ $('#helpDlg').close(); $('#menuDlg').showModal(); });   // zurück ins Menü
+$('#helpDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
 $('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); updateThrEnabled(); renderTable(); });
 $('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); updateThrEnabled(); if(currentTab==='chart') renderChart(); });
 $('#setReminderDays').addEventListener('input',e=>{
