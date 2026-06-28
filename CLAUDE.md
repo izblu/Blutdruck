@@ -21,7 +21,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   (damit die Kopier-Funktion funktioniert):
   1. **Zusammenfassung** – eine kurze Betreffzeile.
   2. **Beschreibung** – Stichpunkte mit den Details der Änderung.
-- Der Nutzer committet/pusht selbst über **GitHub Desktop**; Render deployt automatisch vom `main`-Branch.
+- Der Nutzer committet/pusht selbst über **GitHub Desktop**
 
 ## Aktueller Stand / bisherige Überarbeitungen
 - **Speicher:** Messwerte liegen in der Browser-Datenbank (IndexedDB), mit `localStorage` als

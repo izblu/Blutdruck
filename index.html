@@ -515,7 +515,7 @@ input[type=checkbox].sw:checked::after{left:21px}
   <div class="dlg-actions"><button class="btn-text" id="helpBack" type="button">‹ Zurück</button><span class="grow"></span><button class="btn-fill" id="helpClose" type="button">Menü schließen</button></div>
 </dialog>
 
-<input type="file" id="importFile" accept="application/json,.json" style="display:none">
+<input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" style="display:none">
 <div class="toast" id="toast"></div>
 
 <script>
@@ -921,7 +921,10 @@ function exportJSON(){
 /* Backup über das native Teilen-Menü weitergeben (Cloud/Mail/Messenger); Fallback: Download. */
 async function shareBackup(){
   if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
-  const file=new File([backupBlob()],backupName(),{type:'application/json'});
+  // Als text/plain (.txt) teilen statt application/json (.json): manche Android-/Chrome-Versionen
+  // lehnen .json beim eigentlichen share() ab, obwohl canShare „ja" sagt. Der Inhalt bleibt JSON,
+  // das Wiederherstellen liest die Datei per JSON.parse unverändert ein (Endung egal).
+  const file=new File([backupBlob()],backupName().replace(/\.json$/i,'.txt'),{type:'text/plain'});
   if(!(navigator.canShare && navigator.canShare({files:[file]}))){  // Teilen nicht möglich → Download
     $('#menuDlg').close(); exportJSON(); return;
   }
