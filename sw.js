@@ -1,7 +1,7 @@
 /* Blutdruck – Service Worker für Offline-Betrieb.
    Wird vom Browser automatisch genutzt; nicht manuell öffnen.
    Strategie: network-first (online immer aktuell, offline aus dem Cache). */
-const CACHE = 'blutdruck-v4';
+const CACHE = 'blutdruck-v5';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

@@ -10,7 +10,7 @@
 <link rel="icon" href="icon-192.png">
 <style>
 :root{
-  --bg:#eef2f7; --surface:#ffffff; --surface-2:#f6f8fb;
+  --bg:#eef2f7; --surface:#ffffff; --surface-2:#f6f8fb; --menu-bg:#eaf0fa;
   --text:#1f2937; --muted:#6b7280; --border:#e3e8ef;
   --primary:#2563eb; --primary-ink:#ffffff;
   --c-sys:#dc2626; --c-dia:#2563eb; --c-pulse:#16a34a;
@@ -21,13 +21,13 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f172a; --surface:#1e293b; --surface-2:#172033;
+    --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
     --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
     --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0f172a; --surface:#1e293b; --surface-2:#172033;
+  --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
   --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
   --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4);
 }
@@ -180,10 +180,12 @@ nav.bottom{
 
 /* ---- Dialog ---- */
 dialog{
-  border:none;border-radius:16px;padding:0;width:min(420px,92vw);
+  border:none;border-radius:16px;padding:0;width:min(380px,88vw);max-height:82vh;overflow:auto;
   background:var(--surface);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.3);
 }
-dialog::backdrop{background:rgba(15,23,42,.45)}
+/* Menü & Anleitung heben sich farblich von der App ab und lassen ringsum Rand zum Raustippen */
+#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border)}
+dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-head{padding:16px 18px 0;font-size:1.1rem;font-weight:700}
 .dlg-body{padding:14px 18px}
 .field{margin-bottom:12px}
@@ -197,8 +199,20 @@ dialog::backdrop{background:rgba(15,23,42,.45)}
 .btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
 .menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px;border-bottom:1px solid var(--border)}
 .menu-item:last-of-type{border-bottom:none}
-#mExportCsv{border-bottom:none}
+.menu-item:disabled{opacity:.5;cursor:default}
 .menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}
+.reason{display:block;font-size:11px;color:var(--muted);margin:-4px 0 8px 36px}
+/* Aufklappbare Abschnitte */
+.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px;font-weight:600;border-bottom:1px solid var(--border)}
+.acc-head .lbl{display:flex;align-items:center;gap:12px}
+.acc-head .ic{width:22px;height:22px;flex:0 0 auto;color:var(--primary)}
+.acc-head .chev{width:20px;height:20px;flex:0 0 auto;color:var(--muted);transition:transform .2s}
+.acc-head[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.acc-body{display:none;padding-left:4px}
+.acc-body.open{display:block}
+/* Anleitung-Pop-up */
+.help-p{margin:0 0 12px;font-size:.95rem;line-height:1.5}
+.help-p code{background:var(--surface-2);padding:1px 6px;border-radius:6px;font-family:ui-monospace,monospace}
 .switch{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--border)}
 #reminderRow{border-bottom:none}
 #reminderHint{margin:6px 0 0;padding:2px 4px 12px;border-bottom:1px solid var(--border)}
@@ -386,31 +400,40 @@ input[type=checkbox].sw:checked::after{left:21px}
 <dialog id="menuDlg">
   <div class="dlg-head">Menü</div>
   <div class="dlg-body">
-    <div class="sec-h">Sichern &amp; Exportieren</div>
-    <button class="menu-item" id="mExportCsv">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
-      Export als CSV (Excel)</button>
-    <button class="menu-item" id="mExportJson">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
-      Backup speichern (JSON)</button>
-    <button class="menu-item" id="mShare">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
-      Backup teilen</button>
-    <button class="menu-item" id="mLinkFile">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
-      Backup-Datei verknüpfen (autom.)</button>
-    <div class="switch" id="reminderRow">
-      <span>Backup-Erinnerung</span>
-      <span class="rem-int"><span>alle</span><input type="number" inputmode="numeric" min="0" id="setReminderDays"><span>Tage</span></span>
+    <button class="acc-head" type="button" aria-expanded="false" aria-controls="accData">
+      <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.4-3 7.4-7 9-4-1.6-7-4.6-7-9V6z"/></svg>Daten &amp; Backup</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="acc-body" id="accData">
+      <button class="menu-item" id="mExportJson">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+        Backup speichern</button>
+      <button class="menu-item" id="mShare">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>
+        Backup teilen</button>
+      <small class="reason" id="mShareReason" hidden></small>
+      <button class="menu-item" id="mLinkFile">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/></svg>
+        Auto-Backup in Datei</button>
+      <small class="reason" id="mLinkFileReason" hidden></small>
+      <button class="menu-item" id="mImport">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><path d="M3 4v4h4"/></svg>
+        Backup wiederherstellen</button>
+      <button class="menu-item" id="mExportCsv">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+        Als CSV exportieren (Excel)</button>
+      <div class="switch" id="reminderRow">
+        <span>Backup-Erinnerung</span>
+        <span class="rem-int"><span>alle</span><input type="number" inputmode="numeric" min="0" id="setReminderDays"><span>Tage</span></span>
+      </div>
+      <p class="hint" id="reminderHint">Erinnert dich, wenn es seit so vielen Tagen ungesicherte Änderungen gibt. 0 = aus.</p>
     </div>
-    <p class="hint" id="reminderHint">Erinnert dich, wenn es seit so vielen Tagen ungesicherte Änderungen gibt. 0 = aus.</p>
 
-    <div class="sec-h">Wiederherstellen</div>
-    <button class="menu-item" id="mImport">
-      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M5 3h14"/></svg>
-      Backup laden (JSON)</button>
-
-    <div class="sec-h">Anzeige</div>
+    <button class="acc-head" type="button" aria-expanded="false" aria-controls="accView">
+      <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M2 14h4M10 8h4M18 16h4"/></svg>Anzeige</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="acc-body" id="accView">
     <div class="switch"><span>Werte-Ampel (Tabelle)</span><input type="checkbox" class="sw" id="setColor"></div>
     <div class="switch"><span>Schwellenwert-Linien im Diagramm</span><input type="checkbox" class="sw" id="setGuide"></div>
     <div class="thr" id="thrBlock">
@@ -439,8 +462,37 @@ input[type=checkbox].sw:checked::after{left:21px}
         </button>
       </div>
     </div>
+    </div>
+    <button class="acc-head" type="button" aria-expanded="false" aria-controls="accManage">
+      <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>Verwalten</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <div class="acc-body" id="accManage">
+      <p class="hint" id="storageStatus">Speicher-Status wird geladen …</p>
+      <button class="menu-item" id="mClearAll" style="color:var(--danger)">
+        <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--danger)"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>
+        Alle Daten löschen</button>
+    </div>
+    <button class="acc-head" id="mHelp" type="button">
+      <span class="lbl"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.5 1.4c0 1.6-2.2 2-2.4 3.1"/><path d="M12 17h.01"/></svg>Anleitung</span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
   </div>
   <div class="dlg-actions"><span class="grow"></span><button class="btn-fill" id="menuClose" type="button">Fertig</button></div>
+</dialog>
+
+<!-- Anleitung / Hilfe -->
+<dialog id="helpDlg">
+  <div class="dlg-head">So funktioniert's</div>
+  <div class="dlg-body">
+    <p class="help-p"><b>Werte eintragen:</b> Tippe einfach <code>120 80 65</code> – also Systolisch, Diastolisch, Puls – und auf Speichern. Eine Notiz kannst du optional dazuschreiben.</p>
+    <p class="help-p"><b>Farben (Ampel):</b> Grün heißt im grünen Bereich, Gelb und Rot heißt erhöht. Die Grenzwerte stellst du im Menü unter „Anzeige" selbst ein.</p>
+    <p class="help-p"><b>Tabelle:</b> Tippe einen Eintrag an, um ihn zu ändern oder zu löschen. Oben kannst du nach Zeitraum filtern.</p>
+    <p class="help-p"><b>Diagramm:</b> Zeigt deinen Verlauf über die Zeit. Tippe einen Punkt an, um die Details zu sehen.</p>
+    <p class="help-p"><b>Backup (wichtig!):</b> Deine Daten liegen nur auf diesem Gerät. Mach regelmäßig ein Backup über „Backup teilen" oder „Backup speichern" – dann sind sie sicher, falls das Gerät verloren geht.</p>
+    <p class="help-p"><b>Tipp:</b> Lege die App auf den Home-Bildschirm (auf dem iPhone über Teilen → „Zum Home-Bildschirm"). Dann bleiben deine Daten dauerhaft erhalten.</p>
+  </div>
+  <div class="dlg-actions"><span class="grow"></span><button class="btn-fill" id="helpClose" type="button">Verstanden</button></div>
 </dialog>
 
 <input type="file" id="importFile" accept="application/json,.json" style="display:none">
@@ -542,9 +594,10 @@ async function requestPersistence(){
 }
 
 function loadEntries(){ try{const a=JSON.parse(localStorage.getItem(LS_KEY)||'[]');return Array.isArray(a)?a:[];}catch{return[];} }
+function quotaToast(e){ if(e&&e.name==='QuotaExceededError') toast('Speicher voll – bitte Backup sichern und alte Daten aufräumen','err'); }
 function saveEntries(){
-  try{ localStorage.setItem(LS_KEY,JSON.stringify(entries)); }catch{}   // Spiegel/Fallback
-  if(_db) idbWriteAll(entries).then(scheduleAutoBackup).catch(()=>{});  // robuster Hauptspeicher
+  try{ localStorage.setItem(LS_KEY,JSON.stringify(entries)); }catch(e){ quotaToast(e); }   // Spiegel/Fallback
+  if(_db) idbWriteAll(entries).then(scheduleAutoBackup).catch(quotaToast);                  // robuster Hauptspeicher
 }
 function loadSettings(){
   let s; try{ s=Object.assign({},SET_DEFAULT,JSON.parse(localStorage.getItem(LS_SET)||'{}')); }catch{ s={...SET_DEFAULT}; }
@@ -902,23 +955,64 @@ function importJSON(file){
         .map(x=>({id:x.id||uid(),ts:new Date(x.ts).toISOString(),sys:+x.sys,dia:+x.dia,pulse:+x.pulse,note:x.note?String(x.note):''}));
       if(!valid.length) throw 0;
       const map=new Map(entries.map(e=>[e.id,e]));
-      valid.forEach(e=>map.set(e.id,e));
+      let added=0, updated=0;
+      valid.forEach(e=>{ if(map.has(e.id)) updated++; else added++; map.set(e.id,e); });
       entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
-      toast(`${valid.length} Einträge importiert ✓`);
+      toast(`${added} neu, ${updated} aktualisiert ✓`);
     }catch{ toast('Import fehlgeschlagen: ungültige Datei','err'); }
   };
   r.readAsText(file);
+}
+
+/* Alle Messwerte löschen. Die externe Backup-Datei bleibt erhalten und wird NICHT überschrieben:
+   Auto-Backup wird abgebrochen und die Verknüpfung gelöst. */
+async function clearAllData(){
+  if(!confirm('Wirklich ALLE Messwerte löschen? Das lässt sich nicht rückgängig machen.\n\nEine bereits gespeicherte Backup-Datei bleibt erhalten, wird aber nicht mehr automatisch aktualisiert.')) return;
+  clearTimeout(_abT);                         // kein Auto-Backup der leeren Liste auslösen
+  entries=[];
+  try{ localStorage.removeItem(LS_KEY); }catch{}
+  try{ if(_db){ await idbWriteAll([]); await idbSetMeta('backupHandle',null); } }catch{}
+  markBackedUp(); refreshData();
+  $('#menuDlg').close();
+  toast('Alle Daten gelöscht');
 }
 $('#mExportCsv').addEventListener('click',()=>{ $('#menuDlg').close(); exportCSV(); });
 $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJSON(); });
 $('#mShare').addEventListener('click',()=>{ $('#menuDlg').close(); shareBackup(); });
 $('#mLinkFile').addEventListener('click',()=>{ $('#menuDlg').close(); chooseBackupFile(); });
-// Nicht unterstützte Optionen ausblenden (Progressive Enhancement)
+// Nicht unterstützte Optionen sichtbar lassen, aber deaktivieren + kurzen Grund anzeigen
 const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.json',{type:'application/json'})]}); }catch{ return false; } })());
-if(!SHARE_SUPPORTED) $('#mShare').hidden=true;
-if(!FS_SUPPORTED) $('#mLinkFile').hidden=true;
+function disableMenuItem(btnId,reasonId,text){ const b=$('#'+btnId); if(b) b.disabled=true; const r=$('#'+reasonId); if(r){ r.textContent=text; r.hidden=false; } }
+if(!SHARE_SUPPORTED) disableMenuItem('mShare','mShareReason','Dein Browser kann das Teilen nicht.');
+if(!FS_SUPPORTED) disableMenuItem('mLinkFile','mLinkFileReason','Auf diesem Gerät nicht verfügbar.');
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
+$('#mClearAll').addEventListener('click',clearAllData);
+$('#mHelp').addEventListener('click',()=>{ $('#menuDlg').close(); $('#helpDlg').showModal(); });
+// Aufklappbare Abschnitte öffnen/schließen
+$$('#menuDlg .acc-head[aria-controls]').forEach(h=>h.addEventListener('click',()=>{
+  const open=h.getAttribute('aria-expanded')==='true';
+  h.setAttribute('aria-expanded',String(!open));
+  $('#'+h.getAttribute('aria-controls')).classList.toggle('open',!open);
+}));
+// Speicher-Status: dauerhaft gesichert? wie viel belegt?
+async function updateStorageStatus(){
+  const el=$('#storageStatus'); if(!el) return;
+  try{
+    const persisted=(navigator.storage&&navigator.storage.persisted)?await navigator.storage.persisted():false;
+    let used='';
+    if(navigator.storage&&navigator.storage.estimate){
+      const est=await navigator.storage.estimate();
+      if(est&&est.usage!=null) used=' · '+(est.usage/1048576).toFixed(1).replace('.',',')+' MB belegt';
+    }
+    el.textContent=(persisted?'Dauerhaft gesichert':'Nicht dauerhaft gesichert')+used;
+    if(!persisted){
+      const a=document.createElement('a'); a.href='#'; a.textContent=' Aktivieren';
+      a.addEventListener('click',async ev=>{ ev.preventDefault(); await requestPersistence(); updateStorageStatus(); });
+      el.appendChild(a);
+    }
+  }catch{ el.textContent='Speicher-Status nicht verfügbar'; }
+}
 
 /* ---------- Backup-Erinnerung ---------- */
 const DAY=86400000;
@@ -963,9 +1057,11 @@ function applySettingsUI(){
   applyThrUI();
   updateThrEnabled();
 }
-$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); $('#menuDlg').showModal(); });
+$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); updateStorageStatus(); $('#menuDlg').showModal(); });
 $('#menuClose').addEventListener('click',()=>$('#menuDlg').close());
 $('#menuDlg').addEventListener('click',e=>{ const d=e.currentTarget,r=d.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) d.close(); });
+$('#helpClose').addEventListener('click',()=>$('#helpDlg').close());
+$('#helpDlg').addEventListener('click',e=>{ const d=e.currentTarget,r=d.getBoundingClientRect(); if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom) d.close(); });
 $('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); updateThrEnabled(); renderTable(); });
 $('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); updateThrEnabled(); if(currentTab==='chart') renderChart(); });
 $('#setReminderDays').addEventListener('input',e=>{
