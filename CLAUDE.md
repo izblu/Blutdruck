@@ -54,6 +54,9 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 „… CSV …" = für Excel/Auswertung (einseitig, nicht originalgetreu).
 
 ## Geparkte Aufgaben (noch zu besprechen)
+- **Auto-Backup-Buttons überarbeiten:** Optik, Titel und Funktion der drei Buttons unter
+  „Auto-Backup in Datei" („Jetzt sichern", „Datei ändern", „Verknüpfung lösen") genau prüfen und
+  neu gestalten – der Nutzer ist mit dem aktuellen Stand noch nicht ganz zufrieden.
 - **Personalisierung:** Alter, Fitness-Level o. Ä. erfassen und daraus passende Ideal-/Zielwerte
   ableiten (statt fixer Standard-Schwellen).
 - **Profile:** mehrere Profile (z. B. für Familienmitglieder), jeweils mit eigener, dediziert

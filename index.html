@@ -921,16 +921,22 @@ function exportJSON(){
 /* Backup über das native Teilen-Menü weitergeben (Cloud/Mail/Messenger); Fallback: Download. */
 async function shareBackup(){
   if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
+  const file=new File([backupBlob()],backupName(),{type:'application/json'});
+  if(!(navigator.canShare && navigator.canShare({files:[file]}))){  // Teilen nicht möglich → Download
+    $('#menuDlg').close(); exportJSON(); return;
+  }
   try{
-    const file=new File([backupBlob()],backupName(),{type:'application/json'});
-    if(navigator.canShare && navigator.canShare({files:[file]})){
-      await navigator.share({files:[file]});   // ohne title – manche Ziele lehnen die Kombi sonst ab
-      markBackedUp(); toast('Backup geteilt ✓');
-    }else{ exportJSON(); }              // Fallback: normaler Download
+    // Menü NICHT vor dem Teilen schließen: sonst geht auf Android die frische Tipp-Erlaubnis
+    // (transiente Nutzer-Aktivierung) verloren und das Teilen wird blockiert. Erst danach schließen.
+    await navigator.share({files:[file]});   // ohne title – manche Ziele lehnen die Kombi sonst ab
+    markBackedUp(); toast('Backup geteilt ✓'); $('#menuDlg').close();
   }catch(e){
-    if(e&&e.name==='AbortError') return;       // Nutzer hat das Teilen abgebrochen
-    // Teilen ging nicht – Nutzer aktiv entscheiden lassen, ob stattdessen heruntergeladen wird
-    if(confirm('Teilen hat nicht geklappt. Stattdessen als Datei speichern (Download)?')){
+    if(e&&e.name==='AbortError') return;      // Nutzer hat das Teilen abgebrochen – Menü offen lassen
+    $('#menuDlg').close();
+    // Teilen ging nicht – Nutzer aktiv entscheiden lassen, ob stattdessen heruntergeladen wird.
+    // Der genaue Fehler steht mit drin, damit wir die Ursache eindeutig erkennen können.
+    const why=e?((e.name||'Fehler')+(e.message?': '+e.message:'')):'Unbekannter Fehler';
+    if(confirm('Teilen hat nicht geklappt.\n('+why+')\n\nStattdessen als Datei speichern (Download)?')){
       download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert ✓');
     }
   }
@@ -1004,7 +1010,7 @@ async function clearAllData(){
 }
 $('#mExportCsv').addEventListener('click',()=>{ $('#menuDlg').close(); exportCSV(); });
 $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJSON(); });
-$('#mShare').addEventListener('click',()=>{ $('#menuDlg').close(); shareBackup(); });
+$('#mShare').addEventListener('click',()=>{ shareBackup(); });   // Menü erst nach dem Teilen schließen (Gesten-Schutz)
 $('#mLinkFile').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
 // Nicht unterstützte Optionen sichtbar lassen, aber deaktivieren + kurzen Grund anzeigen
 const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.json',{type:'application/json'})]}); }catch{ return false; } })());
