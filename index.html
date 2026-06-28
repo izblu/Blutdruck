@@ -925,6 +925,14 @@ async function shareBackup(){
   if(!(navigator.canShare && navigator.canShare({files:[file]}))){  // Teilen nicht möglich → Download
     $('#menuDlg').close(); exportJSON(); return;
   }
+  // Diagnose-Werte GENAU vor dem Teilen festhalten (für die Fehlersuche am Handy):
+  // War die frische Tipp-Erlaubnis (Nutzer-Aktivierung) aktiv? Läuft die App als installierte
+  // PWA oder als Browser-Tab? Welcher Browser? (z. B. Samsung Internet teilt Dateien oft nicht.)
+  const ua=navigator.userActivation;
+  const act=ua?('act='+ua.isActive+'/'+ua.hasBeenActive):'act=?';
+  const mode=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)?'PWA':'Tab';
+  const m=/SamsungBrowser\/[\d.]+|Edg\/\d+|Chrome\/\d+|Firefox\/\d+/.exec(navigator.userAgent||'');
+  const brand=m?m[0]:'Browser?';
   try{
     // Menü NICHT vor dem Teilen schließen: sonst geht auf Android die frische Tipp-Erlaubnis
     // (transiente Nutzer-Aktivierung) verloren und das Teilen wird blockiert. Erst danach schließen.
@@ -933,10 +941,11 @@ async function shareBackup(){
   }catch(e){
     if(e&&e.name==='AbortError') return;      // Nutzer hat das Teilen abgebrochen – Menü offen lassen
     $('#menuDlg').close();
-    // Teilen ging nicht – Nutzer aktiv entscheiden lassen, ob stattdessen heruntergeladen wird.
-    // Der genaue Fehler steht mit drin, damit wir die Ursache eindeutig erkennen können.
-    const why=e?((e.name||'Fehler')+(e.message?': '+e.message:'')):'Unbekannter Fehler';
-    if(confirm('Teilen hat nicht geklappt.\n('+why+')\n\nStattdessen als Datei speichern (Download)?')){
+    // Teilen ging nicht – freundlich erklären und den Nutzer entscheiden lassen, ob stattdessen
+    // heruntergeladen wird. Technische Info nachgestellt (zum Vorlesen/Abfotografieren für die Diagnose).
+    const err=e?((e.name||'Fehler')+(e.message?': '+e.message:'')):'Unbekannter Fehler';
+    const info=err+' · '+act+' · '+mode+' · '+brand;
+    if(confirm('Das direkte Teilen hat dein Browser/Handy nicht erlaubt.\n\nStattdessen als Datei speichern (Download)?\n\n(Technische Info: '+info+')')){
       download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert ✓');
     }
   }

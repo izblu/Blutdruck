@@ -63,3 +63,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   hinterlegter Backup-Datei pro Profil.
 - **CSV-Import** ergänzen (Gegenstück zu „Als CSV exportieren") → Bezeichnung „Aus CSV importieren".
 - **Einstellungen** ebenfalls in IndexedDB ablegen (aktuell nur in localStorage).
+- **Menü-Positionierung** entweder vertikal zentrieren oder an den unten Bildschirmrand (aktuell
+  am oberen Bildschirmrand und dadurch mit Daumen schwer erreichbar).
+- **Anleitung:** Die Erklärtexte sind noch nicht aussagekräftig genug. Zudem decken sie nicht die
+  wichtigsten Funktionen ab, wie z. B. die Backup-Lösung etc.
