@@ -1,8 +1,8 @@
 /* Blutdruck – Service Worker für Offline-Betrieb.
    Wird vom Browser automatisch genutzt; nicht manuell öffnen.
    Strategie: network-first (online immer aktuell, offline aus dem Cache). */
-const CACHE = 'blutdruck-v9';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const CACHE = 'blutdruck-v10';
+const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
