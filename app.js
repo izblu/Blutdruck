@@ -32,25 +32,27 @@ const TOAST_ICON={
   notice:'<svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l9.5 17H2.5z" fill="currentColor"/><path d="M12 9.5v4.2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.15" fill="#fff"/></svg>',
   error:'<svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l9.5 17H2.5z" fill="currentColor"/><path d="M12 9.5v4.2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.15" fill="#fff"/></svg>'
 };
-let _toastT,_toastHideT;
+let _toastT;
+/* Toast in das gerade offene Fenster (Dialog) rendern, sonst in den Body. Ein modales Fenster
+   macht alles AUSSERHALB von sich „unberührbar" (inert); liegt der Toast im Fenster, bleibt er
+   sichtbar UND wischbar. (Ersetzt das frühere Popover/Top-Layer-Konstrukt.) */
+function toastHost(){ return $$('dialog').find(d=>d.open) || document.body; }
 function toast(msg,kind){
   kind=(kind==='error'||kind==='notice')?kind:'success';
-  const wrap=$('#toast'); wrap.innerHTML=''; clearTimeout(_toastHideT);
+  const wrap=$('#toast'), host=toastHost();
+  if(wrap.parentElement!==host) host.appendChild(wrap);   // zum offenen Fenster (bzw. Body) holen
+  wrap.innerHTML='';
   const card=document.createElement('div'); card.className='toast-card '+kind;
   card.innerHTML=TOAST_ICON[kind];
   const s=document.createElement('span'); s.className='t-msg'; s.textContent=msg; card.appendChild(s);
   wrap.appendChild(card);
-  // In den Top-Layer heben, damit der Toast auch ÜBER dem offenen Menü sichtbar ist (Fallback: ignoriert)
-  try{ if(wrap.showPopover && !wrap.matches(':popover-open')) wrap.showPopover(); }catch{}
   requestAnimationFrame(()=>wrap.classList.add('show'));   // einblenden
   clearTimeout(_toastT); _toastT=setTimeout(hideToast,4000);
   swipeToast(card);
 }
 function hideToast(){
   clearTimeout(_toastT);
-  const wrap=$('#toast'); wrap.classList.remove('show');
-  clearTimeout(_toastHideT);   // erst ausblenden (Transition), dann aus dem Top-Layer nehmen
-  _toastHideT=setTimeout(()=>{ wrap.classList.remove('show'); try{ if(wrap.hidePopover && wrap.matches(':popover-open')) wrap.hidePopover(); }catch{} },260);
+  $('#toast').classList.remove('show');
 }
 /* Toast horizontal wegwischen (Pointer = Finger + Maus); beim Berühren pausiert der Auto-Timer. */
 function swipeToast(card){
@@ -655,6 +657,9 @@ $('#menuDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.cur
 $('#helpClose').addEventListener('click',()=>$('#helpDlg').close());
 $('#helpBack').addEventListener('click',()=>{ $('#helpDlg').close(); $('#menuDlg').showModal(); });   // zurück ins Menü
 $('#helpDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
+// Toast nicht im gerade geschlossenen Fenster „einsperren": zurück in den Body holen, damit eine
+// noch sichtbare Meldung nahtlos unten stehen bleibt (z. B. „Backup geteilt" vor dem Schließen).
+$$('dialog').forEach(d=>d.addEventListener('close',()=>{ const w=$('#toast'); if(w.parentElement===d) document.body.appendChild(w); }));
 $('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); updateThrEnabled(); renderTable(); });
 $('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); updateThrEnabled(); if(currentTab==='chart') renderChart(); });
 $('#setReminderDays').addEventListener('input',e=>{
