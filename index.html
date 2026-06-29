@@ -185,7 +185,7 @@ dialog{
   background:var(--surface);color:var(--text);box-shadow:0 10px 40px rgba(0,0,0,.3);
 }
 /* Menü & Anleitung heben sich farblich von der App ab und lassen ringsum Rand zum Raustippen */
-#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border);margin-top:5vh;margin-bottom:auto}
+#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border);margin-top:auto;margin-bottom:calc(12px + env(safe-area-inset-bottom))}
 dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-head{padding:16px 18px 0;font-size:1.1rem;font-weight:700}
 .dlg-body{padding:14px 18px}
@@ -258,21 +258,32 @@ input[type=checkbox].sw:checked::after{left:21px}
 .rem-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
 
 /* ---- Toast ---- */
-.toast{
-  position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
-  background:#111827;color:#fff;padding:11px 18px;border-radius:999px;font-size:.92rem;
-  opacity:0;pointer-events:none;transition:.25s;z-index:50;box-shadow:0 6px 20px rgba(0,0,0,.3);
+/* Toast: zentrierter Wrapper unten; darin eine wischbare Karte in 3 Kategorien */
+#toast{
+  position:fixed;inset:auto;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  margin:0;border:0;padding:0;background:none;overflow:visible;
+  width:max-content;max-width:min(92vw,420px);z-index:50;pointer-events:none;
 }
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.err{background:var(--danger)}
+.toast-card{
+  display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:14px;
+  font-size:.95rem;font-weight:700;line-height:1.3;box-shadow:0 6px 20px rgba(0,0,0,.18);
+  opacity:0;transform:translateY(20px);transition:opacity .25s,transform .25s;
+  pointer-events:none;touch-action:pan-y;
+}
+#toast.show .toast-card{opacity:1;transform:translateY(0);pointer-events:auto}
+.toast-card .t-ic{flex:0 0 auto;width:22px;height:22px;display:block}
+.toast-card .t-msg{flex:1 1 auto}
+.toast-card.success{background:#e7f5ea;color:#2e7d32}
+.toast-card.success .t-ic{color:#2e9e4f}
+.toast-card.notice{background:#fbf1de;color:#946b00}
+.toast-card.notice .t-ic{color:#cc8f00}
+.toast-card.error{background:#fdeceb;color:#b3261e}
+.toast-card.error .t-ic{color:#d93025}
 </style>
 </head>
 <body>
 <header class="app">
   <h1><span class="logo" id="logo"></span> Blutdruck</h1>
-  <button class="icon-btn" id="menuBtn" aria-label="Menü">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-  </button>
 </header>
 
 <main>
@@ -380,6 +391,8 @@ input[type=checkbox].sw:checked::after{left:21px}
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>Tabelle</button>
   <button class="navbtn" data-tab="chart">
     <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5v14h16"/><path d="M7 14l4-4 3 2 5-6"/></svg>Diagramm</button>
+  <button class="navbtn" id="menuBtn" type="button" aria-label="Menü">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>Menü</button>
 </nav>
 
 <!-- Edit dialog -->
@@ -516,7 +529,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 </dialog>
 
 <input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" style="display:none">
-<div class="toast" id="toast"></div>
+<div id="toast" popover="manual" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
@@ -547,10 +560,41 @@ const todayStr = () => { const d=new Date(),p=n=>String(n).padStart(2,'0');
 const stampDateTime = () => { const d=new Date(),p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; };
 
-function toast(msg,type){
-  const t=$('#toast'); t.textContent=msg;
-  t.className='toast show'+(type==='err'?' err':'');
-  clearTimeout(t._t); t._t=setTimeout(()=>t.className='toast',2300);
+/* Toast in 3 Kategorien (success/notice/error): farbiges Feld mit Icon, 4 s sichtbar, wegwischbar. */
+const TOAST_ICON={
+  success:'<svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="currentColor"/><path d="M7.5 12.4l3 3 6-6.6" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  notice:'<svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l9.5 17H2.5z" fill="currentColor"/><path d="M12 9.5v4.2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.15" fill="#fff"/></svg>',
+  error:'<svg class="t-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.2l9.5 17H2.5z" fill="currentColor"/><path d="M12 9.5v4.2" stroke="#fff" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1.15" fill="#fff"/></svg>'
+};
+let _toastT,_toastHideT;
+function toast(msg,kind){
+  kind=(kind==='error'||kind==='notice')?kind:'success';
+  const wrap=$('#toast'); wrap.innerHTML=''; clearTimeout(_toastHideT);
+  const card=document.createElement('div'); card.className='toast-card '+kind;
+  card.innerHTML=TOAST_ICON[kind];
+  const s=document.createElement('span'); s.className='t-msg'; s.textContent=msg; card.appendChild(s);
+  wrap.appendChild(card);
+  // In den Top-Layer heben, damit der Toast auch ÜBER dem offenen Menü sichtbar ist (Fallback: ignoriert)
+  try{ if(wrap.showPopover && !wrap.matches(':popover-open')) wrap.showPopover(); }catch{}
+  requestAnimationFrame(()=>wrap.classList.add('show'));   // einblenden
+  clearTimeout(_toastT); _toastT=setTimeout(hideToast,4000);
+  swipeToast(card);
+}
+function hideToast(){
+  clearTimeout(_toastT);
+  const wrap=$('#toast'); wrap.classList.remove('show');
+  clearTimeout(_toastHideT);   // erst ausblenden (Transition), dann aus dem Top-Layer nehmen
+  _toastHideT=setTimeout(()=>{ wrap.classList.remove('show'); try{ if(wrap.hidePopover && wrap.matches(':popover-open')) wrap.hidePopover(); }catch{} },260);
+}
+/* Toast horizontal wegwischen (Pointer = Finger + Maus); beim Berühren pausiert der Auto-Timer. */
+function swipeToast(card){
+  let startX=0,dx=0,drag=false;
+  card.addEventListener('pointerdown',e=>{ drag=true; startX=e.clientX; dx=0; card.style.transition='none'; clearTimeout(_toastT); try{card.setPointerCapture(e.pointerId);}catch{} });
+  card.addEventListener('pointermove',e=>{ if(!drag) return; dx=e.clientX-startX; card.style.transform='translateX('+dx+'px)'; card.style.opacity=String(Math.max(0,1-Math.abs(dx)/200)); });
+  const end=()=>{ if(!drag) return; drag=false; card.style.transition='';
+    if(Math.abs(dx)>60){ card.style.transform='translateX('+(dx>0?420:-420)+'px)'; card.style.opacity='0'; setTimeout(hideToast,200); }
+    else{ card.style.transform=''; card.style.opacity=''; clearTimeout(_toastT); _toastT=setTimeout(hideToast,4000); } };
+  card.addEventListener('pointerup',end); card.addEventListener('pointercancel',end);
 }
 
 /* ---------- Speicherung ---------- */
@@ -614,7 +658,7 @@ async function requestPersistence(){
 }
 
 function loadEntries(){ try{const a=JSON.parse(localStorage.getItem(LS_KEY)||'[]');return Array.isArray(a)?a:[];}catch{return[];} }
-function quotaToast(e){ if(e&&e.name==='QuotaExceededError') toast('Speicher voll – bitte Backup sichern und alte Daten aufräumen','err'); }
+function quotaToast(e){ if(e&&e.name==='QuotaExceededError') toast('Speicher voll – bitte Backup sichern','error'); }
 function saveEntries(){
   try{ localStorage.setItem(LS_KEY,JSON.stringify(entries)); }catch(e){ quotaToast(e); }   // Spiegel/Fallback
   if(_db) idbWriteAll(entries).then(scheduleAutoBackup).catch(quotaToast);                  // robuster Hauptspeicher
@@ -718,7 +762,7 @@ function saveCapture(){
   addEntry({id:uid(),ts:new Date().toISOString(),sys,dia,pulse,note:$('#noteInput').value.trim()});
   input.value=''; $('#noteInput').value=''; setNote(false); updatePreview();
   renderAll();
-  toast('Gespeichert ✓');
+  toast('Gespeichert');
   updateReminder();
   input.focus();
 }
@@ -787,7 +831,7 @@ function resetView(){
   sortKey='ts'; sortDir='desc';
   Object.keys(filters).forEach(k=>filters[k]='');
   syncFilterInputs(); setActiveRangeChip(0); refreshData();
-  toast('Zurückgesetzt');
+  toast('Eingabe zurückgesetzt','notice');
 }
 $('#resetBtn').addEventListener('click',resetView);
 $('#resetBtn2').addEventListener('click',resetView);
@@ -804,12 +848,12 @@ function openEdit(id){
 }
 $('#edSave').addEventListener('click',()=>{
   const sys=+$('#edSys').value, dia=+$('#edDia').value, pulse=+$('#edPulse').value, dt=$('#edDt').value;
-  if(!dt||!Number.isFinite(sys)||!Number.isFinite(dia)||!Number.isFinite(pulse)){ toast('Bitte alle Werte ausfüllen','err'); return; }
+  if(!dt||!Number.isFinite(sys)||!Number.isFinite(dia)||!Number.isFinite(pulse)){ toast('Bitte alle Werte ausfüllen','notice'); return; }
   updateEntry(editId,{ts:fromLocalInput(dt),sys,dia,pulse,note:$('#edNote').value.trim()});
-  $('#editDlg').close(); refreshData(); toast('Aktualisiert ✓');
+  $('#editDlg').close(); refreshData(); toast('Aktualisiert');
 });
 $('#edDelete').addEventListener('click',()=>{
-  if(confirm('Diesen Eintrag wirklich löschen?')){ removeEntry(editId); $('#editDlg').close(); refreshData(); toast('Gelöscht'); }
+  if(confirm('Diesen Eintrag wirklich löschen?')){ removeEntry(editId); $('#editDlg').close(); refreshData(); toast('Eintrag gelöscht'); }
 });
 $('#edCancel').addEventListener('click',()=>$('#editDlg').close());
 
@@ -901,30 +945,31 @@ function download(blob,name){
 }
 const csvCell=v=>{ v=String(v); return /[";\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
 function exportCSV(){
-  if(!entries.length){ toast('Keine Daten zum Exportieren','err'); return; }
+  if(!entries.length){ toast('Noch keine Werte zum Exportieren','notice'); return; }
   const rows=[['Datum','Uhrzeit','Systolisch','Diastolisch','Puls','Notiz']];
   entries.slice().sort((a,b)=>new Date(a.ts)-new Date(b.ts))
     .forEach(e=>rows.push([fmtDate(e.ts),fmtTime(e.ts),e.sys,e.dia,e.pulse,(e.note||'').replace(/\r?\n/g,' ')]));
   const csv='﻿'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n');
   download(new Blob([csv],{type:'text/csv;charset=utf-8'}),`blutdruck-${todayStr()}.csv`);
-  toast('CSV exportiert ✓');
+  toast('CSV exportiert');
 }
-function backupName(){ return `blutdruck-backup-${stampDateTime()}.json`; }
-function backupBlob(){ return new Blob([JSON.stringify(entries,null,2)],{type:'application/json'}); }
+// Backup-Datei: Inhalt bleibt JSON (JSON.stringify), aber Endung .txt und Typ text/plain –
+// einheitlich für alle Backup-Wege und nötig fürs Teilen auf Android (Chrome lehnt .json beim
+// share() ab). Wiederherstellen liest per JSON.parse, die Datei-Endung spielt dabei keine Rolle.
+function backupName(){ return `blutdruck-backup-${stampDateTime()}.txt`; }
+function backupBlob(){ return new Blob([JSON.stringify(entries,null,2)],{type:'text/plain'}); }
 function exportJSON(){
-  if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
+  if(!entries.length){ toast('Noch keine Werte zum Sichern','notice'); return; }
   download(backupBlob(),backupName());
   markBackedUp();
-  toast('Backup gespeichert ✓');
+  toast('Backup gespeichert');
 }
 
 /* Backup über das native Teilen-Menü weitergeben (Cloud/Mail/Messenger); Fallback: Download. */
 async function shareBackup(){
-  if(!entries.length){ toast('Keine Daten zum Sichern','err'); return; }
-  // Als text/plain (.txt) teilen statt application/json (.json): manche Android-/Chrome-Versionen
-  // lehnen .json beim eigentlichen share() ab, obwohl canShare „ja" sagt. Der Inhalt bleibt JSON,
-  // das Wiederherstellen liest die Datei per JSON.parse unverändert ein (Endung egal).
-  const file=new File([backupBlob()],backupName().replace(/\.json$/i,'.txt'),{type:'text/plain'});
+  if(!entries.length){ toast('Noch keine Werte zum Sichern','notice'); return; }
+  // backupName()/backupBlob() liefern bereits .txt / text/plain (siehe oben).
+  const file=new File([backupBlob()],backupName(),{type:'text/plain'});
   if(!(navigator.canShare && navigator.canShare({files:[file]}))){  // Teilen nicht möglich → Download
     $('#menuDlg').close(); exportJSON(); return;
   }
@@ -940,7 +985,7 @@ async function shareBackup(){
     // Menü NICHT vor dem Teilen schließen: sonst geht auf Android die frische Tipp-Erlaubnis
     // (transiente Nutzer-Aktivierung) verloren und das Teilen wird blockiert. Erst danach schließen.
     await navigator.share({files:[file]});   // ohne title – manche Ziele lehnen die Kombi sonst ab
-    markBackedUp(); toast('Backup geteilt ✓'); $('#menuDlg').close();
+    markBackedUp(); toast('Backup geteilt'); $('#menuDlg').close();
   }catch(e){
     if(e&&e.name==='AbortError') return;      // Nutzer hat das Teilen abgebrochen – Menü offen lassen
     $('#menuDlg').close();
@@ -949,7 +994,7 @@ async function shareBackup(){
     const err=e?((e.name||'Fehler')+(e.message?': '+e.message:'')):'Unbekannter Fehler';
     const info=err+' · '+act+' · '+mode+' · '+brand;
     if(confirm('Das direkte Teilen hat dein Browser/Handy nicht erlaubt.\n\nStattdessen als Datei speichern (Download)?\n\n(Technische Info: '+info+')')){
-      download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert ✓');
+      download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert');
     }
   }
 }
@@ -958,16 +1003,16 @@ async function shareBackup(){
    Nur Chromium (Chrome/Edge/Android); sonst per Feature-Detection ausgeblendet. */
 const FS_SUPPORTED=typeof window.showSaveFilePicker==='function';
 async function chooseBackupFile(){
-  if(!FS_SUPPORTED){ toast('Von diesem Browser nicht unterstützt','err'); return; }
+  if(!FS_SUPPORTED){ toast('Auf diesem Gerät nicht verfügbar','notice'); return; }
   try{
     const handle=await window.showSaveFilePicker({
-      suggestedName:'blutdruck-backup.json',
-      types:[{description:'JSON',accept:{'application/json':['.json']}}]
+      suggestedName:'blutdruck-backup.txt',
+      types:[{description:'Textdatei',accept:{'text/plain':['.txt']}}]
     });
     await idbSetMeta('backupHandle',handle);
     await writeToHandle(handle);
-    toast('Backup-Datei verknüpft ✓');
-  }catch(e){ if(e&&e.name!=='AbortError') toast('Verknüpfen fehlgeschlagen','err'); }
+    toast('Backup-Datei verknüpft');
+  }catch(e){ if(e&&e.name!=='AbortError') toast('Verknüpfen fehlgeschlagen','error'); }
 }
 async function writeToHandle(handle){
   const w=await handle.createWritable();
@@ -1002,8 +1047,8 @@ function importJSON(file){
       let added=0, updated=0;
       valid.forEach(e=>{ if(map.has(e.id)) updated++; else added++; map.set(e.id,e); });
       entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
-      toast(`${added} neu, ${updated} aktualisiert ✓`);
-    }catch{ toast('Import fehlgeschlagen: ungültige Datei','err'); }
+      toast(`Wiederhergestellt: ${added} neu, ${updated} aktualisiert`);
+    }catch{ toast('Wiederherstellen fehlgeschlagen: ungültige Datei','error'); }
   };
   r.readAsText(file);
 }
@@ -1025,7 +1070,7 @@ $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJS
 $('#mShare').addEventListener('click',()=>{ shareBackup(); });   // Menü erst nach dem Teilen schließen (Gesten-Schutz)
 $('#mLinkFile').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
 // Nicht unterstützte Optionen sichtbar lassen, aber deaktivieren + kurzen Grund anzeigen
-const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.json',{type:'application/json'})]}); }catch{ return false; } })());
+const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.txt',{type:'text/plain'})]}); }catch{ return false; } })());
 function disableMenuItem(btnId,reasonId,text){ const b=$('#'+btnId); if(b) b.disabled=true; const r=$('#'+reasonId); if(r){ r.textContent=text; r.hidden=false; } }
 if(!SHARE_SUPPORTED) disableMenuItem('mShare','mShareReason','Dein Browser kann das Teilen nicht.');
 if(!FS_SUPPORTED) disableMenuItem('mLinkFile','mLinkFileReason','Auf diesem Gerät nicht verfügbar.');
@@ -1045,14 +1090,14 @@ $('#mLinkWrite').addEventListener('click',async ()=>{
   try{
     const handle=await idbGetMeta('backupHandle');
     if(!handle){ refreshLinkFileUI(); return; }
-    if(!(await ensurePerm(handle))){ toast('Keine Schreibrechte für die Datei','err'); return; }
-    await writeToHandle(handle); toast('Backup gespeichert ✓');
-  }catch{ toast('Sichern fehlgeschlagen','err'); }
+    if(!(await ensurePerm(handle))){ toast('Keine Schreibrechte für die Datei','error'); return; }
+    await writeToHandle(handle); toast('Backup gespeichert');
+  }catch{ toast('Sichern fehlgeschlagen','error'); }
 });
 $('#mLinkChange').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
 $('#mLinkUnlink').addEventListener('click',async ()=>{
   try{ await idbSetMeta('backupHandle',null); }catch{}
-  refreshLinkFileUI(); toast('Verknüpfung gelöst');
+  refreshLinkFileUI(); toast('Verknüpfung gelöst','notice');
 });
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
@@ -1061,9 +1106,18 @@ $('#mHelp').addEventListener('click',()=>{ $('#menuDlg').close(); $('#helpDlg').
 // Aufklappbare Abschnitte öffnen/schließen
 $$('#menuDlg .acc-head[aria-controls]').forEach(h=>h.addEventListener('click',()=>{
   const open=h.getAttribute('aria-expanded')==='true';
-  h.setAttribute('aria-expanded',String(!open));
-  $('#'+h.getAttribute('aria-controls')).classList.toggle('open',!open);
-  h.closest('.acc-sec').classList.toggle('open',!open);   // Karten-Optik des offenen Abschnitts
+  // Immer nur EIN Abschnitt offen: erst alle schließen ...
+  $$('#menuDlg .acc-head[aria-controls]').forEach(o=>{
+    o.setAttribute('aria-expanded','false');
+    $('#'+o.getAttribute('aria-controls')).classList.remove('open');
+    o.closest('.acc-sec').classList.remove('open');
+  });
+  // ... dann nur den geklickten öffnen, falls er vorher zu war (sonst bleibt alles zu)
+  if(!open){
+    h.setAttribute('aria-expanded','true');
+    $('#'+h.getAttribute('aria-controls')).classList.add('open');
+    h.closest('.acc-sec').classList.add('open');   // Karten-Optik des offenen Abschnitts
+  }
 }));
 // Speicher-Status: dauerhaft gesichert? wie viel belegt?
 async function updateStorageStatus(){
@@ -1148,7 +1202,7 @@ $$('#themeSeg .seg-btn').forEach(b=>b.addEventListener('click',()=>{ settings.th
     if(Number.isFinite(v)){ settings.thr[key]=v; saveSettings(); renderTable(); } // Echtzeit-Aktualisierung der Tabelle
   });
 });
-$('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); toast('Standardwerte gesetzt'); });
+$('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); toast('Standardwerte wiederhergestellt','notice'); });
 
 /* ---------- App-Steuerung ---------- */
 let currentTab='capture';
@@ -1159,7 +1213,7 @@ function showTab(name){
   if(name==='chart') renderChart();
   if(name==='capture') setTimeout(()=>input.focus(),60);
 }
-$$('.navbtn').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+$$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); }
 function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); }
 window.addEventListener('resize',()=>{ if(currentTab==='chart') renderChart(); });

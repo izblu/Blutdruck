@@ -33,13 +33,15 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   werden **Name** (nur der Dateiname – Browser geben aus Sicherheitsgründen keinen vollständigen
   Pfad her und können Datei/Ordner nicht im Datei-Manager öffnen) und die Aktionen „Jetzt sichern",
   „Datei ändern", „Verknüpfung lösen" gezeigt.
-  „Backup wiederherstellen" (JSON laden, mit Statistik „X neu, Y aktualisiert").
+  „Backup wiederherstellen" (Backup-Datei laden – .txt oder ältere .json –, mit Statistik „X neu, Y aktualisiert").
   „Als CSV exportieren (Excel)" für die Auswertung.
 - **Menü:** als **klappbare Abschnitte** (Daten & Backup, Anzeige, Verwalten) plus „Anleitung".
+  Geöffnet über das **„Menü"-Icon unten rechts in der Tab-Bar** (Erfassen · Tabelle · Diagramm · Menü).
   Das Menü-Fenster ist schmaler als der Bildschirm, hat eine eigene Hintergrundfarbe (`--menu-bg`)
   und lässt ringsum Rand zum Raustippen. **Keine Trennlinien** mehr – der aufgeklappte Abschnitt
-  hebt sich als **weiße Karte** mit Schatten ab. Das Fenster hängt oben fest (kein „Springen" beim
-  Auf-/Zuklappen) und schließt nur bei echtem Tippen auf die Backdrop-Fläche (`e.target===dialog`).
+  hebt sich als **weiße Karte** mit Schatten ab; es ist **immer nur ein Abschnitt offen** (einen
+  anderen öffnen schließt den vorigen). Das Fenster sitzt **unten am Bildschirmrand**
+  (daumenfreundlich) und schließt nur bei echtem Tippen auf die Backdrop-Fläche (`e.target===dialog`).
   Aus der Anleitung führt ein „‹ Zurück"-Button wieder ins Menü; Schließen-Buttons heißen „Menü schließen".
 - **Nicht unterstützte Funktionen** werden nicht versteckt, sondern **ausgegraut** mit kurzer
   Begründung (z. B. „Auf diesem Gerät nicht verfügbar").
@@ -48,9 +50,14 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - **Anleitung:** kurzes, umgangssprachliches Hilfe-Pop-up für Anwender.
 - **Fehler:** Wenn der Speicher voll ist (QuotaExceededError), erscheint ein Hinweis statt
   stillem Fehlschlag.
+- **Meldungen (Toasts):** kurze Rückmeldungen unten als farbige Karte mit Icon in drei Kategorien –
+  **Erfolg** (grün, Haken), **Hinweis** (gelb/amber, Dreieck) und **Fehler** (rot, Dreieck).
+  4 s sichtbar, per **Wischen** zur Seite schließbar; helle Flächen → in Hell und Dunkel lesbar.
+  Funktion `toast(msg, kind)` mit `kind ∈ success | notice | error` (Default `success`).
 
 ## Namens-Konvention (Backup vs. CSV)
-„Backup …" = vollständige Sicherung/Wiederherstellung (Format JSON, originalgetreu).
+„Backup …" = vollständige Sicherung/Wiederherstellung (Dateiendung **.txt**, Inhalt JSON, originalgetreu;
+.txt wegen Android-Teilen-Kompatibilität – Wiederherstellen akzeptiert .txt **und** ältere .json).
 „… CSV …" = für Excel/Auswertung (einseitig, nicht originalgetreu).
 
 ## Geparkte Aufgaben (noch zu besprechen)
@@ -63,7 +70,8 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   hinterlegter Backup-Datei pro Profil.
 - **CSV-Import** ergänzen (Gegenstück zu „Als CSV exportieren") → Bezeichnung „Aus CSV importieren".
 - **Einstellungen** ebenfalls in IndexedDB ablegen (aktuell nur in localStorage).
-- **Menü-Positionierung** entweder vertikal zentrieren oder an den unten Bildschirmrand (aktuell
-  am oberen Bildschirmrand und dadurch mit Daumen schwer erreichbar).
+- **Menü-Position verfeinern:** Das Menü sitzt jetzt unten (erledigt) und Toasts liegen im
+  Top-Layer **darüber**. Wunsch für später: Menü am unteren Bildschirmrand, aber **oberhalb der
+  Toasts** – die Toasts sollen **unter** dem Menü erscheinen, nicht davor/darüber.
 - **Anleitung:** Die Erklärtexte sind noch nicht aussagekräftig genug. Zudem decken sie nicht die
   wichtigsten Funktionen ab, wie z. B. die Backup-Lösung etc.
