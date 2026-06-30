@@ -249,14 +249,30 @@
 <dialog id="helpDlg">
   <div class="dlg-head">So funktioniert's</div>
   <div class="dlg-body">
-    <p class="help-p"><b>Werte eintragen:</b> Tippe einfach <code>120 80 65</code> – also Systolisch, Diastolisch, Puls – und auf Speichern. Eine Notiz kannst du optional dazuschreiben.</p>
-    <p class="help-p"><b>Farben (Ampel):</b> Grün heißt im grünen Bereich, Gelb und Rot heißt erhöht. Die Grenzwerte stellst du im Menü unter „Anzeige" selbst ein.</p>
-    <p class="help-p"><b>Tabelle:</b> Tippe einen Eintrag an, um ihn zu ändern oder zu löschen. Oben kannst du nach Zeitraum filtern.</p>
-    <p class="help-p"><b>Diagramm:</b> Zeigt deinen Verlauf über die Zeit. Tippe einen Punkt an, um die Details zu sehen.</p>
-    <p class="help-p"><b>Backup (wichtig!):</b> Deine Daten liegen nur auf diesem Gerät. Mach regelmäßig ein Backup über „Backup teilen" oder „Backup speichern" – dann sind sie sicher, falls das Gerät verloren geht.</p>
-    <p class="help-p"><b>Tipp:</b> Lege die App auf den Home-Bildschirm (auf dem iPhone über Teilen → „Zum Home-Bildschirm"). Dann bleiben deine Daten dauerhaft erhalten.</p>
+    <p class="help-p"><b>Werte eintragen:</b> Tippe einfach drei Zahlen wie <code>120 80 65</code> – Systolisch, Diastolisch, Puls – und auf „Speichern". Eine Notiz (z. B. „nach dem Sport") kannst du optional dazuschreiben; Datum und Uhrzeit setzt die App automatisch.</p>
+    <p class="help-p"><b>Farben (Ampel):</b> Grün heißt im Zielbereich, Gelb leicht erhöht, Rot deutlich erhöht. Ab wann Gelb bzw. Rot gilt, stellst du selbst ein: Menü → „Anzeige" → „Schwellenwerte für Gelb / Rot".</p>
+    <p class="help-p"><b>Tabelle:</b> Alle Messungen als Liste. Tippe einen Eintrag an, um ihn zu ändern oder zu löschen. Über „Filter" suchst du nach Zeitraum, Werten oder Notiz, über die Spaltenköpfe sortierst du.</p>
+    <p class="help-p"><b>Diagramm:</b> Zeigt deinen Verlauf über die Zeit. Mit den Chips (7 / 30 / 90 Tage / Alle) wählst du den Zeitraum, ein Tipp auf einen Punkt zeigt die genauen Werte. Direkt darunter siehst du eine kurze <b>Statistik</b> (Anzahl, Mittelwerte, Spanne).</p>
+    <p class="help-p"><b>Automatisches Backup (am bequemsten):</b> Verknüpfe einmal eine Datei – danach sichert die App jede Änderung von selbst dort hinein. Menü → „Backup" → „Automatisches Backup": „Neu anlegen" erstellt eine neue Datei, „Auswählen" nimmt eine vorhandene. Steht oben grün „Verknüpft: …", läuft alles automatisch; rot „Keine Datei verknüpft" heißt: noch nicht eingerichtet. Mit „Ändern" wechselst du die Datei, mit „Lösen" trennst du die Verknüpfung (die Datei selbst bleibt erhalten). Gibt es nur in Chrome/Edge (auch Android) – auf iPhone/Safari ist sie ausgegraut.</p>
+    <p class="help-p"><b>Manuelles Backup &amp; Teilen:</b> „Speichern" lädt eine Backup-Datei herunter, „Backup teilen" schickt sie an Cloud, Mail oder Messenger. „Wiederherstellen" liest eine Backup-Datei wieder ein und führt sie mit deinen Daten zusammen – nichts geht verloren. „Erinnerung" stupst dich an, wenn es seit einigen Tagen ungesicherte Änderungen gibt.</p>
+    <p class="help-p"><b>Einstellungen sind dabei:</b> In einem Backup stecken jetzt auch deine Einstellungen (Schwellenwerte, Hell/Dunkel und mehr). Beim Wiederherstellen fragt die App, ob sie diese ebenfalls übernehmen soll.</p>
+    <p class="help-p"><b>Daten:</b> Menü → „Daten": „Als CSV exportieren" für Excel/Auswertung, „Alle Daten löschen" (mit Rückfrage; eine vorhandene Backup-Datei bleibt erhalten). Darunter steht, wie viel Speicher belegt ist.</p>
+    <p class="help-p"><b>Wichtig – nichts verlieren:</b> Deine Daten liegen nur auf diesem Gerät. Richte einmal das automatische Backup ein oder sichere ab und zu manuell – dann sind deine Werte geschützt, falls das Gerät verloren geht.</p>
+    <p class="help-p"><b>Tipp – App installieren:</b> Lege die App auf den Home-Bildschirm (iPhone: Teilen → „Zum Home-Bildschirm"; Android: Menü → „App installieren"). Dann startet sie wie eine echte App und der Speicher bleibt dauerhaft erhalten.</p>
   </div>
   <div class="dlg-actions"><button class="btn-text" id="helpBack" type="button">‹ Zurück</button><span class="grow"></span><button class="btn-fill" id="helpClose" type="button">Menü schließen</button></div>
+</dialog>
+
+<!-- Wiederherstellen: Einstellungen mit übernehmen? (eigenes Fenster, damit die Knöpfe sprechende Texte haben) -->
+<dialog id="restoreDlg">
+  <div class="dlg-head">Backup wiederherstellen</div>
+  <div class="dlg-body">
+    <p class="help-p">Dieses Backup enthält auch deine App-Einstellungen (Schwellenwerte, Hell/Dunkel und mehr). Was möchtest du übernehmen?</p>
+  </div>
+  <div class="dlg-actions col">
+    <button class="btn-fill" id="restoreWith" type="button">Werte und Einstellungen übernehmen</button>
+    <button class="btn-text" id="restoreOnly" type="button">Nur die Werte übernehmen</button>
+  </div>
 </dialog>
 
 <input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" style="display:none">

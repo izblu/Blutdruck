@@ -136,7 +136,11 @@ function loadSettings(){
   s.thr=Object.assign({},SET_DEFAULT.thr,s.thr||{}); // Schwellenwerte immer vollständig halten
   return s;
 }
-function saveSettings(){ localStorage.setItem(LS_SET,JSON.stringify(settings)); }
+function persistSettings(){
+  try{ localStorage.setItem(LS_SET,JSON.stringify(settings)); }catch(e){ quotaToast(e); }   // Spiegel/Fallback
+  if(_db) idbSetMeta('settings',settings).catch(()=>{});                                     // robuster Hauptspeicher
+}
+function saveSettings(){ persistSettings(); scheduleAutoBackup(); }                           // Nutzer-Änderung: auch Auto-Backup-Datei aktualisieren
 
 let entries=[];
 let settings=loadSettings();
@@ -145,6 +149,17 @@ let settings=loadSettings();
 async function initStorage(){
   try{
     _db=await openDB();
+    // Einstellungen robust laden / einmalig aus localStorage migrieren (gleiches Muster wie entries)
+    try{
+      const s=await idbGetMeta('settings');
+      if(s && typeof s==='object'){
+        settings=Object.assign({},SET_DEFAULT,s);
+        settings.thr=Object.assign({},SET_DEFAULT.thr,s.thr||{});
+        try{ localStorage.setItem(LS_SET,JSON.stringify(settings)); }catch{}   // schnellen Spiegel sofort wiederherstellen (kein Theme-Flash beim nächsten Start)
+      }else{
+        await idbSetMeta('settings',settings);
+      }
+    }catch{}
     const fromDb=await idbAll();
     if(fromDb.length){ entries=fromDb; }
     else{
@@ -425,7 +440,11 @@ function exportCSV(){
 // einheitlich für alle Backup-Wege und nötig fürs Teilen auf Android (Chrome lehnt .json beim
 // share() ab). Wiederherstellen liest per JSON.parse, die Datei-Endung spielt dabei keine Rolle.
 function backupName(){ return `blutdruck-backup-${stampDateTime()}.txt`; }
-function backupBlob(){ return new Blob([JSON.stringify(entries,null,2)],{type:'text/plain'}); }
+const BACKUP_VER=2;
+/* Nur die „Vorlieben" sichern – geräte-interne Erinnerungs-Merker (firstDirtyAt/snoozeUntil) bleiben außen vor. */
+function backupSettings(){ const {colorDots,guideLines,theme,reminderDays,thr}=settings; return {colorDots,guideLines,theme,reminderDays,thr}; }
+function backupData(){ return {app:'blutdruck',version:BACKUP_VER,exportedAt:new Date().toISOString(),entries,settings:backupSettings()}; }
+function backupBlob(){ return new Blob([JSON.stringify(backupData(),null,2)],{type:'text/plain'}); }
 function exportJSON(){
   if(!entries.length){ toast('Noch keine Werte zum Sichern','notice'); return; }
   download(backupBlob(),backupName());
@@ -504,6 +523,7 @@ async function pickBackupFile(){
     await writeToHandle(handle);
     await refreshLinkFileUI();
     toast(merged&&merged.added ? 'Verknüpft · '+merged.added+' neu übernommen' : 'Backup-Datei verknüpft');
+    if(merged) offerSettingsRestore(merged.settings);
   }catch(e){ if(e&&e.name!=='AbortError') toast('Verknüpfen fehlgeschlagen','error'); }
 }
 /* Verknüpfung lösen: die Datei selbst bleibt unangetastet, nur das Handle wird vergessen. */
@@ -536,22 +556,37 @@ function scheduleAutoBackup(){ clearTimeout(_abT); _abT=setTimeout(autoBackupIfL
    übergebenen Daten mit den vorhandenen Einträgen (nach id). Gibt {added,updated} zurück oder null,
    wenn nichts Gültiges drinsteckt. */
 function mergeEntriesFromData(data){
-  if(!Array.isArray(data)) return null;
-  const valid=data.filter(x=>x&&typeof x==='object'&&Number.isFinite(+x.sys)&&Number.isFinite(+x.dia)&&Number.isFinite(+x.pulse)&&x.ts)
+  const arr=Array.isArray(data)?data:(data&&Array.isArray(data.entries)?data.entries:null);   // altes Array ODER neues Objekt {entries,settings}
+  if(!arr) return null;
+  const valid=arr.filter(x=>x&&typeof x==='object'&&Number.isFinite(+x.sys)&&Number.isFinite(+x.dia)&&Number.isFinite(+x.pulse)&&x.ts)
     .map(x=>({id:x.id||uid(),ts:new Date(x.ts).toISOString(),sys:+x.sys,dia:+x.dia,pulse:+x.pulse,note:x.note?String(x.note):''}));
   if(!valid.length) return null;
   const map=new Map(entries.map(e=>[e.id,e]));
   let added=0, updated=0;
   valid.forEach(e=>{ if(map.has(e.id)) updated++; else added++; map.set(e.id,e); });
   entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
-  return {added,updated};
+  return {added,updated,settings:(!Array.isArray(data)&&data&&data.settings)||null};
+}
+/* Im Backup enthaltene Einstellungen auf Wunsch übernehmen (geteilt von „Wiederherstellen" und „Auswählen"/„Ändern"). */
+let _pendingRestoreSettings=null;
+function offerSettingsRestore(s){
+  if(!s || typeof s!=='object') return;
+  _pendingRestoreSettings=s;
+  $('#restoreDlg').showModal();          // eigenes Fenster statt Browser-confirm (sprechende Knopf-Texte)
+}
+function applyBackupSettings(s){
+  ['colorDots','guideLines','theme','reminderDays','thr'].forEach(k=>{ if(s[k]!==undefined) settings[k]=s[k]; });
+  settings.thr=Object.assign({},SET_DEFAULT.thr,settings.thr||{});
+  saveSettings(); applyTheme(); applySettingsUI(); renderTable();
+  if(currentTab==='chart') renderChart();
+  toast('Einstellungen übernommen');
 }
 function importJSON(file){
   const r=new FileReader();
   r.onload=()=>{
     let res=null;
     try{ res=mergeEntriesFromData(JSON.parse(r.result)); }catch{}
-    if(res) toast(`Wiederhergestellt: ${res.added} neu, ${res.updated} aktualisiert`);
+    if(res){ toast(`Wiederhergestellt: ${res.added} neu, ${res.updated} aktualisiert`); offerSettingsRestore(res.settings); }
     else toast('Wiederherstellen fehlgeschlagen: ungültige Datei','error');
   };
   r.readAsText(file);
@@ -645,8 +680,8 @@ async function updateStorageStatus(){
 
 /* ---------- Backup-Erinnerung ---------- */
 const DAY=86400000;
-function markDirty(){ if(!settings.firstDirtyAt){ settings.firstDirtyAt=new Date().toISOString(); saveSettings(); } }
-function markBackedUp(){ settings.firstDirtyAt=null; settings.snoozeUntil=0; saveSettings(); updateReminder(); }
+function markDirty(){ if(!settings.firstDirtyAt){ settings.firstDirtyAt=new Date().toISOString(); persistSettings(); } }
+function markBackedUp(){ settings.firstDirtyAt=null; settings.snoozeUntil=0; persistSettings(); updateReminder(); }   // persistSettings statt saveSettings: kein erneutes Auto-Backup (sonst Endlosschleife)
 function reminderDaysDue(){
   const d=+settings.reminderDays||0;
   if(d<=0||!entries.length||!settings.firstDirtyAt) return 0;
@@ -662,7 +697,7 @@ function updateReminder(){
   } else el.hidden=true;
 }
 $('#reminderSave').addEventListener('click',()=>exportJSON());
-$('#reminderLater').addEventListener('click',()=>{ settings.snoozeUntil=Date.now()+DAY; saveSettings(); updateReminder(); });
+$('#reminderLater').addEventListener('click',()=>{ settings.snoozeUntil=Date.now()+DAY; persistSettings(); updateReminder(); });
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) updateReminder(); });
 
 /* ---------- Einstellungen / Menü ---------- */
@@ -694,6 +729,11 @@ $('#menuDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.cur
 $('#helpClose').addEventListener('click',()=>$('#helpDlg').close());
 $('#helpBack').addEventListener('click',()=>{ $('#helpDlg').close(); $('#menuDlg').showModal(); });   // zurück ins Menü
 $('#helpDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
+// Wiederherstellen-Rückfrage: oben Werte+Einstellungen, unten nur Werte. Raustippen/Esc = nur Werte.
+$('#restoreWith').addEventListener('click',()=>{ $('#restoreDlg').close(); const s=_pendingRestoreSettings; _pendingRestoreSettings=null; if(s) applyBackupSettings(s); });
+$('#restoreOnly').addEventListener('click',()=>{ _pendingRestoreSettings=null; $('#restoreDlg').close(); });
+$('#restoreDlg').addEventListener('cancel',()=>{ _pendingRestoreSettings=null; });
+$('#restoreDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget){ _pendingRestoreSettings=null; e.currentTarget.close(); } });
 // Toast nicht im gerade geschlossenen Fenster „einsperren": zurück in den Body holen, damit eine
 // noch sichtbare Meldung nahtlos unten stehen bleibt (z. B. „Backup geteilt" vor dem Schließen).
 $$('dialog').forEach(d=>d.addEventListener('close',()=>{ const w=$('#toast'); if(w.parentElement===d) document.body.appendChild(w); }));
@@ -744,6 +784,7 @@ async function init(){
   injectPWA(); applyTheme(); applySettingsUI();
   await requestPersistence();          // Speicher dauerhaft anfordern
   await initStorage();                 // Daten aus IndexedDB laden / migrieren
+  applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
   syncFilterInputs(); setActiveRangeChip(0);
   updatePreview(); renderTable(); updateReminder();
   showTab('capture');

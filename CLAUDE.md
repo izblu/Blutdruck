@@ -25,13 +25,19 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - Der Nutzer committet/pusht selbst über **GitHub Desktop**
 
 ## Aktueller Stand / bisherige Überarbeitungen
-- **Code-Struktur (Umbau Stufe 1, erledigt):** Aufgeteilt in `index.html` (Struktur, ~265 Z.),
-  `styles.css` (~270 Z.) und `app.js` (~709 Z.); eingebunden per `<link rel="stylesheet">` und
+- **Code-Struktur (Umbau Stufe 1, erledigt):** Aufgeteilt in `index.html` (Struktur, ~285 Z.),
+  `styles.css` (~290 Z.) und `app.js` (~790 Z.); eingebunden per `<link rel="stylesheet">` und
   `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien offline (Cache
-  `blutdruck-v11`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
-- **Speicher:** Messwerte liegen in der Browser-Datenbank (IndexedDB), mit `localStorage` als
-  Spiegel/Fallback und einmaliger automatischer Migration. Beim Start wird dauerhafter Speicher
-  angefordert (`navigator.storage.persist()`), Schutz gegen automatisches Löschen (Eviction/ITP).
+  `blutdruck-v12`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
+- **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
+  `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
+  im `meta`-Store unter dem Schlüssel `'settings'` (`idbGetMeta`/`idbSetMeta`); nach dem Laden aus
+  IndexedDB wird der `localStorage`-Spiegel sofort wieder aufgefüllt (kein Theme-Aufblitzen beim
+  nächsten Start). Speichern ist zweigeteilt: `persistSettings()` (nur ablegen) vs. `saveSettings()`
+  (ablegen **+** Auto-Backup-Datei planen) – interne Buchhaltung (`markDirty`/`markBackedUp`/Snooze)
+  nutzt bewusst `persistSettings()`, sonst entstünde beim automatischen Schreiben eine
+  Endlosschleife. Beim Start wird dauerhafter Speicher angefordert
+  (`navigator.storage.persist()`), Schutz gegen automatisches Löschen (Eviction/ITP).
 - **Backup** (Menü-Abschnitt; zwei Gruppen als abgesetzte Karten `.grp-card`, darunter „Backup teilen"):
   - **Automatisches Backup** (immer dieselbe Datei via File System Access API; nur Chromium, sonst
     ausgegraut). Zustandstext **grün** „Verknüpft: ‹Dateiname›" bzw. **rot** „Keine Datei verknüpft"
@@ -52,6 +58,17 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     ungesicherter Änderungen ans Backup).
   - **„Backup teilen"** (Web Share API; klappt das Teilen nicht, fragt ein Dialog, ob stattdessen
     heruntergeladen wird) als breiter Knopf **unter** beiden Karten – übergreifend für beide Methoden.
+  - **Backup-Format (v2):** Die Datei enthält jetzt `{app, version, exportedAt, entries, settings}`
+    statt nur eines reinen `entries`-Arrays (`backupData()`/`backupSettings()`). Gesichert werden nur
+    die **Vorlieben** (`colorDots`, `guideLines`, `theme`, `reminderDays`, `thr`) – geräte-interne
+    Erinnerungs-Merker (`firstDirtyAt`, `snoozeUntil`) nicht. Ältere Backups (reines Array) bleiben
+    les- und wiederherstellbar; `mergeEntriesFromData` erkennt beide Formen.
+  - **Einstellungen-Rückfrage beim Wiederherstellen** (`#restoreDlg`, eigenes Fenster statt
+    Browser-`confirm`, da Knopf-Texte sonst nicht anpassbar sind): Enthält ein eingelesenes Backup
+    auch Einstellungen, erscheint „Werte und Einstellungen übernehmen" (primärer Knopf) /
+    „Nur die Werte übernehmen" (Text-Knopf); Raustippen/Esc = nur Werte (sichere Vorgabe). Ausgelöst
+    von `offerSettingsRestore()`, geteilt von „Wiederherstellen" (`importJSON`) und
+    „Auswählen"/„Ändern" (`pickBackupFile`). Messwerte werden in jedem Fall zusammengeführt.
 - **Menü:** als **klappbare Abschnitte** in fester Reihenfolge **Backup · Daten · Anzeige** plus
   „Anleitung". Geöffnet über das **„Menü"-Icon unten rechts in der Tab-Bar** (Erfassen · Tabelle ·
   Diagramm · Menü). Im Abschnitt „Backup" stehen die zwei Gruppen (Automatisches/Manuelles Backup)
@@ -66,13 +83,14 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   Menü; Schließen-Buttons heißen „Menü schließen".
 - **Nicht unterstützte Funktionen** werden nicht versteckt, sondern **ausgegraut** mit kurzer
   Begründung (z. B. „Auf diesem Gerät nicht verfügbar").
-- **Daten** (Abschnitt, vormals „Verwalten"): „Als CSV exportieren (Excel)" (für die Auswertung;
-  später ergänzt um CSV-Import), „Alle Daten löschen" (mit Sicherheitsabfrage; die externe Backup-
+- **Daten** (Abschnitt, vormals „Verwalten"): „Als CSV exportieren (Excel)" (für die Auswertung),
+  „Alle Daten löschen" (mit Sicherheitsabfrage; die externe Backup-
   Datei bleibt dabei erhalten) und – darunter – eine Info-Zeile mit der **Speicherbelegung**
   (belegt von Kapazität · Prozent, sofern der Browser eine Quota liefert).
   Der frühere Persistenz-Status/„Aktivieren"-Link entfiel (dauerhafter Speicher wird beim Start
   automatisch angefordert).
-- **Anleitung:** kurzes, umgangssprachliches Hilfe-Pop-up für Anwender.
+- **Anleitung:** umgangssprachliches Hilfe-Pop-up (`helpDlg`) mit 10 Abschnitten, inkl.
+  Automatischem Backup, Statistik-Hinweis und App-Installation.
 - **Fehler:** Wenn der Speicher voll ist (QuotaExceededError), erscheint ein Hinweis statt
   stillem Fehlschlag.
 - **Meldungen (Toasts):** kurze Rückmeldungen unten als farbige Karte mit Icon in drei Kategorien –
@@ -88,35 +106,65 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 .txt wegen Android-Teilen-Kompatibilität – Wiederherstellen akzeptiert .txt **und** ältere .json).
 „… CSV …" = für Excel/Auswertung (einseitig, nicht originalgetreu).
 
-## Geparkte Aufgaben (noch zu besprechen)
+## Geparkte Aufgaben
 
-Gruppiert nach Themen. Reihenfolge innerhalb einer Gruppe ≈ grobe Priorität.
+Stand 2026-06-30 gegen die Codebase geprüft und neu nach Priorität geordnet.
+*Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
-### Code-Struktur (Architektur)
-Hintergrund: Analyse ergab – die Einzeldatei war für den Start richtig, stößt aber mit den
-wachsenden Features (v. a. „Profile") an Grenzen. Empfohlen: **build-frei** aufteilen (kein
-Framework, kein Build-System), in zwei Stufen. Geschwindigkeit ist hier kein Faktor; Gewinn liegt
-in Wartbarkeit, sauberen Git-Diffs, feinerem Cache und kleineren, isoliert verständlichen Einheiten.
-**Stufe 1 (CSS & JS auslagern) ist erledigt** (siehe „Aktueller Stand"). Offen ist nur noch Stufe 2:
-- **Umbau Stufe 2 – JS in Module aufteilen (später, wenn die großen Features kommen):**
-  `app.js` in thematische ES-Module zerlegen, z. B. `storage.js`, `backup.js`, `chart.js`,
-  `ui.js`; Einbindung per `<script type="module">`. ES-Module laufen problemlos, weil die App
-  als PWA ohnehin über http(s) (nicht `file://`) betrieben wird.
+### 1. UI/UX-Modernisierung (zusammenhängender Block)
+*Design zuerst als Grundlage, dann die Komponenten gleich im neuen Look – nicht zweimal anfassen.*
+- **Design/Look modernisieren** — mittel · problemlos. Farben & Farbverläufe, Schrift(größen),
+  Icons/Bilder, Buttons. Läuft größtenteils über die zentralen CSS-Variablen (`:root` in
+  [styles.css](styles.css)), inkl. Dark Mode.
+- **Diagramm + Schwellenwert-Darstellung entschlacken** — mittel · problemlos. **Dringend.** Heute
+  zeichnet `renderChart` bis zu 7 Linien in eine Grafik (3 Messwerte + 4 gestrichelte Schwellen) →
+  unübersichtlich. Mögliche Richtungen: Schwellen als farbige Hintergrund-Zonen statt Linien;
+  Sys/Dia und Puls in getrennte Diagramme. Konkrete Richtung später am echten Bild (Vorschau)
+  entscheiden. Verzahnt mit dem 4-Zahlen-Schwellenwert-Editor, der dadurch evtl. schlanker wird.
+- **Statistik-Bereich zu „Dashboard" ausbauen & modernisieren** — mittel · problemlos. `renderStats`
+  + CSS aufwerten und zur Übersicht erweitern: letzter Wert mit Ampel-Status, Trend 7/30 Tage
+  (vs. Vorperiode), Verteilung grün/gelb/rot, Backup-Status. (Vereint „Statistik modernisieren"
+  und „Dashboard".)
+- **Filter für Tabelle und Diagramm vereinheitlichen** — mittel · mit Hürde. Heute hat die Tabelle
+  das volle Filterpanel, das Diagramm nur Zeitraum-Chips. Logik ist schon geteilt (`filters`,
+  `getFiltered`), aber `syncFilterInputs` greift feste IDs (`#f_*`) → für zwei Panels einen
+  geteilten Filter bzw. Klassen statt doppelter IDs nötig.
 
-### Neue Funktionen
-- **Personalisierung:** Alter, Fitness-Level o. Ä. erfassen und daraus passende Ideal-/Zielwerte
-  ableiten (statt fixer Standard-Schwellen).
-- **Profile:** mehrere Profile (z. B. für Familienmitglieder), jeweils mit eigener, dediziert
-  hinterlegter Backup-Datei pro Profil. (Strukturell der größte Brocken – Haupttreiber für Stufe 2.)
-- **CSV-Import** ergänzen (Gegenstück zu „Als CSV exportieren") → Bezeichnung „Aus CSV importieren".
-- **Auto-Wiederherstellung:** verknüpfte Auto-Backup-Datei beim Start automatisch einlesen, wenn die
-  App leer ist (Gegenstück zum automatischen Schreiben in die Datei).
+### 2. Weitere Features
+- **Arzt-Report (Druck/PDF)** — mittel–groß · problemlos. Aufbereiteter, druck-/teilbarer Bericht:
+  Mittelwerte (idealerweise morgens/abends getrennt), Min/Max, Anteil über Zielwert, Verlaufsgrafik,
+  Werteliste – via `window.print` + Druck-CSS (build-frei). Reine Datenaufbereitung, **keine
+  Diagnose/Bewertung**. Geht über den CSV-Export (Rohdaten) hinaus.
+- **Auto-Wiederherstellung** — mittel · mit Hürde. Beim Start, wenn App leer **und** Datei verknüpft
+  (`idbGetMeta('backupHandle')`): Berechtigung prüfen → bei `granted` lesen + `mergeEntriesFromData`.
+  *Hürde:* Datei-Berechtigung erlischt oft nach Browser-Neustart und braucht eine Nutzer-Geste →
+  Fallback-Knopf nötig.
+  *Voraussetzung – Lösch-Protokoll (Tombstones):* Schon heute kann der Merge gelöschte Einträge
+  zurückbringen; beim automatischen Start-Merge wäre das besonders störend. Daher gelöschte IDs
+  protokollieren, damit sie beim Zusammenführen nicht wieder auftauchen.
+- **Vollständige App-Dokumentation** — mittel · problemlos. Quelle ist die **gesamte Codebase**
+  ([index.html](index.html), [styles.css](styles.css), [app.js](app.js), `sw.js`,
+  `manifest.webmanifest`). Zwei Teile:
+  - *Anwender-Teil:* alle Funktionen aus Nutzersicht + Tipps/Best Practices.
+  - *Technischer Teil:* nur die **wichtigsten, miteinander verknüpften** Funktionen, sodass
+    Abhängigkeiten und Prozessflows erkennbar werden (z. B. `saveEntries → idbWriteAll →
+    scheduleAutoBackup → autoBackupIfLinked → writeToHandle`; geteilter Merge-Kern
+    `mergeEntriesFromData`; Start-Sequenz `init → requestPersistence → initStorage`).
+  - *Visualisierung:* Flows als **Grafiken** (build-frei, z. B. Mermaid in Markdown; Alternative SVG).
+  Danach kann diese CLAUDE.md auf reinen Projektkontext verschlankt werden.
 
-### Daten & Speicher
-- **Einstellungen** ebenfalls in IndexedDB ablegen (aktuell nur in localStorage).
+### 3. Groß / zurückgestellt (Grundsatzentscheidung offen)
+- **Profile** (mehrere Personen, eigene Backup-Datei je Profil) — groß · Status offen. Treibt
+  Datenmodell (`entries` pro Profil), Backup-Handle pro Profil, Einstellungen pro Profil, UI-Wechsler.
+- **Umbau Stufe 2 – JS in Module** (`storage.js`/`backup.js`/`chart.js`/`ui.js`, eingebunden per
+  `<script type="module">`) — mittel · problemlos (kein Logikwechsel, aber Sorgfalt wegen vieler
+  gegenseitiger Abhängigkeiten). An Profile gekoppelt; ruht bis dahin. (Stufe 1 – CSS & JS
+  auslagern – ist erledigt, siehe „Aktueller Stand".)
 
-### Texte & Dokumentation
-- **Anleitung (In-App-Hilfe) verbessern:** Die Erklärtexte sind noch nicht aussagekräftig genug
-  und decken die wichtigsten Funktionen (z. B. die Backup-Lösung) nicht ab.
-- **Vollständige App-Dokumentation erstellen** und die in dieser CLAUDE.md hinterlegten Einträge
-  entsprechend übertragen.
+### 4. Gestrichen (geprüft 2026-06-30)
+- **CSV-Import** — redundant zu „Backup → Wiederherstellen"; CSV hat keine `id` → Dubletten,
+  fehleranfälliges Datums-Parsen. (CSV-**Export** bleibt, ist fertig.)
+- **Personalisierung (Alter/Fitness → Zielwerte)** — manueller Schwellenwert-Editor (`settings.thr`)
+  deckt den Bedarf ab; automatische Ableitung medizinisch heikel.
+- **Backup-teilen-Logik prüfen** — erledigt: „teilen", „speichern" und Auto-Backup bauen ihre Datei
+  **immer frisch aus `entries`** (`backupBlob`); keine Mehrdeutigkeit zwischen mehreren Dateien.
