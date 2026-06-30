@@ -467,10 +467,14 @@ async function shareBackup(){
   }
 }
 
-/* Backup-Datei einmal wählen, danach immer dieselbe Datei (optional automatisch) überschreiben.
-   Nur Chromium (Chrome/Edge/Android); sonst per Feature-Detection ausgeblendet. */
-const FS_SUPPORTED=typeof window.showSaveFilePicker==='function';
-async function chooseBackupFile(){
+/* Auto-Backup-Datei: einmal anlegen/wählen, danach immer dieselbe Datei automatisch überschreiben.
+   Nur Chromium (Chrome/Edge/Android); sonst ausgegraut. Beide System-Dialoge nötig:
+   Speichern (neu anlegen) UND Öffnen (bestehende wählen). */
+const FS_SUPPORTED=typeof window.showSaveFilePicker==='function'&&typeof window.showOpenFilePicker==='function';
+
+/* „Neue Datei anlegen": Speichern-Dialog ist hier korrekt (man legt bewusst neu an).
+   Datei anlegen, sofort verknüpfen und den aktuellen Stand hineinschreiben. */
+async function createBackupFile(){
   if(!FS_SUPPORTED){ toast('Auf diesem Gerät nicht verfügbar','notice'); return; }
   try{
     const handle=await window.showSaveFilePicker({
@@ -479,8 +483,34 @@ async function chooseBackupFile(){
     });
     await idbSetMeta('backupHandle',handle);
     await writeToHandle(handle);
-    toast('Backup-Datei verknüpft');
+    await refreshLinkFileUI();
+    toast('Backup-Datei angelegt & verknüpft');
+  }catch(e){ if(e&&e.name!=='AbortError') toast('Anlegen fehlgeschlagen','error'); }
+}
+/* „Bestehende wählen"/„Datei ändern": Öffnen-Dialog (kein Vorschlagsname, keine „Ersetzen?"-Frage).
+   Datensicher: erst Datei-Inhalt einlesen und mit den App-Daten ZUSAMMENFÜHREN (damit eine reichere
+   Datei nichts verliert), dann verknüpfen und den vereinigten Stand zurückschreiben. */
+async function pickBackupFile(){
+  if(!FS_SUPPORTED){ toast('Auf diesem Gerät nicht verfügbar','notice'); return; }
+  try{
+    const [handle]=await window.showOpenFilePicker({
+      types:[{description:'Backup-Datei',accept:{'text/plain':['.txt'],'application/json':['.json']}}],
+      multiple:false
+    });
+    if(!(await ensurePerm(handle))){ toast('Keine Schreibrechte für die Datei','error'); return; }
+    let merged=null;
+    try{ merged=mergeEntriesFromData(JSON.parse(await (await handle.getFile()).text())); }catch{}
+    await idbSetMeta('backupHandle',handle);
+    await writeToHandle(handle);
+    await refreshLinkFileUI();
+    toast(merged&&merged.added ? 'Verknüpft · '+merged.added+' neu übernommen' : 'Backup-Datei verknüpft');
   }catch(e){ if(e&&e.name!=='AbortError') toast('Verknüpfen fehlgeschlagen','error'); }
+}
+/* Verknüpfung lösen: die Datei selbst bleibt unangetastet, nur das Handle wird vergessen. */
+async function unlinkBackupFile(){
+  try{ await idbSetMeta('backupHandle',null); }catch{}
+  await refreshLinkFileUI();
+  toast('Verknüpfung gelöst','notice');
 }
 async function writeToHandle(handle){
   const w=await handle.createWritable();
@@ -502,21 +532,27 @@ async function autoBackupIfLinked(){
 }
 let _abT=0;
 function scheduleAutoBackup(){ clearTimeout(_abT); _abT=setTimeout(autoBackupIfLinked,1500); }
+/* Merge-Kern, geteilt von „Backup wiederherstellen" und „Bestehende Datei wählen": vereinigt die
+   übergebenen Daten mit den vorhandenen Einträgen (nach id). Gibt {added,updated} zurück oder null,
+   wenn nichts Gültiges drinsteckt. */
+function mergeEntriesFromData(data){
+  if(!Array.isArray(data)) return null;
+  const valid=data.filter(x=>x&&typeof x==='object'&&Number.isFinite(+x.sys)&&Number.isFinite(+x.dia)&&Number.isFinite(+x.pulse)&&x.ts)
+    .map(x=>({id:x.id||uid(),ts:new Date(x.ts).toISOString(),sys:+x.sys,dia:+x.dia,pulse:+x.pulse,note:x.note?String(x.note):''}));
+  if(!valid.length) return null;
+  const map=new Map(entries.map(e=>[e.id,e]));
+  let added=0, updated=0;
+  valid.forEach(e=>{ if(map.has(e.id)) updated++; else added++; map.set(e.id,e); });
+  entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
+  return {added,updated};
+}
 function importJSON(file){
   const r=new FileReader();
   r.onload=()=>{
-    try{
-      const data=JSON.parse(r.result);
-      if(!Array.isArray(data)) throw 0;
-      const valid=data.filter(x=>x&&typeof x==='object'&&Number.isFinite(+x.sys)&&Number.isFinite(+x.dia)&&Number.isFinite(+x.pulse)&&x.ts)
-        .map(x=>({id:x.id||uid(),ts:new Date(x.ts).toISOString(),sys:+x.sys,dia:+x.dia,pulse:+x.pulse,note:x.note?String(x.note):''}));
-      if(!valid.length) throw 0;
-      const map=new Map(entries.map(e=>[e.id,e]));
-      let added=0, updated=0;
-      valid.forEach(e=>{ if(map.has(e.id)) updated++; else added++; map.set(e.id,e); });
-      entries=[...map.values()]; saveEntries(); markDirty(); refreshData();
-      toast(`Wiederhergestellt: ${added} neu, ${updated} aktualisiert`);
-    }catch{ toast('Wiederherstellen fehlgeschlagen: ungültige Datei','error'); }
+    let res=null;
+    try{ res=mergeEntriesFromData(JSON.parse(r.result)); }catch{}
+    if(res) toast(`Wiederhergestellt: ${res.added} neu, ${res.updated} aktualisiert`);
+    else toast('Wiederherstellen fehlgeschlagen: ungültige Datei','error');
   };
   r.readAsText(file);
 }
@@ -536,37 +572,36 @@ async function clearAllData(){
 $('#mExportCsv').addEventListener('click',()=>{ $('#menuDlg').close(); exportCSV(); });
 $('#mExportJson').addEventListener('click',()=>{ $('#menuDlg').close(); exportJSON(); });
 $('#mShare').addEventListener('click',()=>{ shareBackup(); });   // Menü erst nach dem Teilen schließen (Gesten-Schutz)
-$('#mLinkFile').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
 // Nicht unterstützte Optionen sichtbar lassen, aber deaktivieren + kurzen Grund anzeigen
 const SHARE_SUPPORTED=!!(navigator.canShare&&(()=>{ try{ return navigator.canShare({files:[new File([''],'x.txt',{type:'text/plain'})]}); }catch{ return false; } })());
 function disableMenuItem(btnId,reasonId,text){ const b=$('#'+btnId); if(b) b.disabled=true; const r=$('#'+reasonId); if(r){ r.textContent=text; r.hidden=false; } }
 if(!SHARE_SUPPORTED) disableMenuItem('mShare','mShareReason','Dein Browser kann das Teilen nicht.');
-if(!FS_SUPPORTED) disableMenuItem('mLinkFile','mLinkFileReason','Auf diesem Gerät nicht verfügbar.');
 // Auto-Backup-Datei: Name der verknüpften Datei + Aktionen anzeigen/aktualisieren.
 // (Browser geben aus Sicherheitsgründen nur den Dateinamen her – keinen vollständigen Pfad,
 //  und können die Datei/den Ordner nicht im Datei-Manager öffnen.)
+/* Auto-Backup-Bereich auffrischen: Zustandstext (rot/grün) + die zwei Knöpfe (Text & Aktion) je
+   nachdem, ob eine Datei verknüpft ist. Bei nicht unterstütztem Browser ausgegraut mit Grund. */
 async function refreshLinkFileUI(){
-  const box=$('#linkFileBox'); if(!box) return;
-  if(!FS_SUPPORTED){ box.hidden=true; return; }
-  try{
-    const handle=await idbGetMeta('backupHandle');
-    if(handle){ $('#linkFileName').textContent='Verknüpft: '+handle.name; box.hidden=false; }
-    else box.hidden=true;
-  }catch{ box.hidden=true; }
+  const box=$('#linkFileBox'), name=$('#linkFileName'), b1=$('#lfBtn1'), b2=$('#lfBtn2');
+  if(!box) return;
+  if(!FS_SUPPORTED){                        // Browser kann keine Datei-Verknüpfung → ausgrauen + Grund
+    box.style.opacity='.5'; b1.disabled=b2.disabled=true;
+    name.textContent='Auf diesem Gerät nicht verfügbar'; name.className='reason';
+    b1.textContent='Neu anlegen'; b2.textContent='Auswählen';
+    return;
+  }
+  box.style.opacity=''; b1.disabled=b2.disabled=false;
+  let handle=null; try{ handle=await idbGetMeta('backupHandle'); }catch{}
+  if(handle){                               // verknüpft → grün; links „Lösen", rechts „Ändern"
+    name.textContent='Verknüpft: '+handle.name; name.className='reason is-linked';
+    b1.textContent='Lösen';   b1.onclick=unlinkBackupFile;
+    b2.textContent='Ändern';  b2.onclick=pickBackupFile;
+  }else{                                    // nicht verknüpft → rot; links „Neu anlegen", rechts „Auswählen"
+    name.textContent='Keine Datei verknüpft'; name.className='reason is-unlinked';
+    b1.textContent='Neu anlegen'; b1.onclick=createBackupFile;
+    b2.textContent='Auswählen';   b2.onclick=pickBackupFile;
+  }
 }
-$('#mLinkWrite').addEventListener('click',async ()=>{
-  try{
-    const handle=await idbGetMeta('backupHandle');
-    if(!handle){ refreshLinkFileUI(); return; }
-    if(!(await ensurePerm(handle))){ toast('Keine Schreibrechte für die Datei','error'); return; }
-    await writeToHandle(handle); toast('Backup gespeichert');
-  }catch{ toast('Sichern fehlgeschlagen','error'); }
-});
-$('#mLinkChange').addEventListener('click',async ()=>{ await chooseBackupFile(); refreshLinkFileUI(); });
-$('#mLinkUnlink').addEventListener('click',async ()=>{
-  try{ await idbSetMeta('backupHandle',null); }catch{}
-  refreshLinkFileUI(); toast('Verknüpfung gelöst','notice');
-});
 $('#mImport').addEventListener('click',()=>$('#importFile').click());
 $('#importFile').addEventListener('change',e=>{ if(e.target.files[0]){ $('#menuDlg').close(); importJSON(e.target.files[0]); } e.target.value=''; });
 $('#mClearAll').addEventListener('click',clearAllData);
@@ -588,22 +623,24 @@ $$('#menuDlg .acc-head[aria-controls]').forEach(h=>h.addEventListener('click',()
   }
 }));
 // Speicher-Status: dauerhaft gesichert? wie viel belegt?
+// Belegter Speicher als reine Info – mit Kapazität und Prozent, sofern der Browser eine Quota
+// liefert. Der frühere Persistenz-Status („Dauerhaft gesichert?" + „Aktivieren"-Link) entfällt:
+// dauerhaften Speicher fordert die App ohnehin beim Start automatisch an (requestPersistence in
+// init), und die Backups sichern zusätzlich ab.
+const fmtBytes=b=>{ const mb=b/1048576; return (mb>=1024?(mb/1024).toFixed(1)+' GB':mb.toFixed(1)+' MB').replace('.',','); };
 async function updateStorageStatus(){
   const el=$('#storageStatus'); if(!el) return;
   try{
-    const persisted=(navigator.storage&&navigator.storage.persisted)?await navigator.storage.persisted():false;
-    let used='';
-    if(navigator.storage&&navigator.storage.estimate){
-      const est=await navigator.storage.estimate();
-      if(est&&est.usage!=null) used=' · '+(est.usage/1048576).toFixed(1).replace('.',',')+' MB belegt';
-    }
-    el.textContent=(persisted?'Dauerhaft gesichert':'Nicht dauerhaft gesichert')+used;
-    if(!persisted){
-      const a=document.createElement('a'); a.href='#'; a.textContent=' Aktivieren';
-      a.addEventListener('click',async ev=>{ ev.preventDefault(); await requestPersistence(); updateStorageStatus(); });
-      el.appendChild(a);
-    }
-  }catch{ el.textContent='Speicher-Status nicht verfügbar'; }
+    const est=(navigator.storage&&navigator.storage.estimate)?await navigator.storage.estimate():null;
+    if(est&&est.usage!=null){
+      let t=fmtBytes(est.usage)+' belegt';
+      if(est.quota){                       // Kapazität bekannt → „belegt von Kapazität · Prozent"
+        const pct=est.usage/est.quota*100, pctStr=pct<0.1?'<0,1':pct.toFixed(1).replace('.',',');
+        t=fmtBytes(est.usage)+' von '+fmtBytes(est.quota)+' belegt · '+pctStr+' %';
+      }
+      el.textContent=t; el.hidden=false;
+    } else el.hidden=true;
+  }catch{ el.hidden=true; }
 }
 
 /* ---------- Backup-Erinnerung ---------- */

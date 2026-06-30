@@ -195,8 +195,19 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}
 .reason{display:block;font-size:11px;color:var(--muted);margin:-4px 0 8px 36px}
 /* Auto-Backup-Datei: Name + Aktionen */
-.lf-actions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px 36px}
-.lf-btn{padding:7px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.85rem}
+.lf-actions{display:flex;gap:8px}
+.lf-btn{flex:1;white-space:nowrap;text-align:center;padding:8px 6px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.8rem}
+.lf-btn:disabled{opacity:.6}
+/* Backup-Gruppen als abgesetzte Karten (Automatisch / Manuell) */
+.grp-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-bottom:9px}
+.grp-head{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin:0 0 6px}
+#linkFileName{margin:0 0 7px}
+.is-linked{color:var(--cat-g);font-weight:600}
+.is-unlinked{color:var(--danger);font-weight:600}
+/* „Backup teilen": breiter Knopf unter den Gruppen-Karten */
+.share-btn{display:flex;width:100%;align-items:center;justify-content:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.92rem}
+.share-btn .ic{width:18px;height:18px;color:var(--muted)}
+.share-btn:disabled{opacity:.5}
 /* Aufklappbare Abschnitte */
 .acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 8px;font-weight:600}
 .acc-head .lbl{display:flex;align-items:center;gap:12px}
