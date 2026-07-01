@@ -275,6 +275,21 @@
   </div>
 </dialog>
 
+<!-- Allgemeine Bestätigen-Rückfrage (ersetzt native confirm(): eigenes Design, Hell/Dunkel, Symbol,
+     optional Vorschau/Details/Häkchen). Steht bewusst NACH editDlg/menuDlg (Toast-im-Dialog-Logik). -->
+<dialog id="confirmDlg">
+  <div class="dlg-head"><span class="cdlg-ic" id="confirmIcon" aria-hidden="true"></span><span id="confirmTitle"></span></div>
+  <div class="dlg-body">
+    <p class="help-p" id="confirmMsg"></p>
+    <div id="confirmExtra"></div>
+  </div>
+  <div class="dlg-actions">
+    <span class="grow"></span>
+    <button class="btn-text" id="confirmCancel" type="button">Abbrechen</button>
+    <button class="btn-fill" id="confirmOk" type="button">OK</button>
+  </div>
+</dialog>
+
 <input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" style="display:none">
 <div id="toast" role="status" aria-live="polite"></div>
 

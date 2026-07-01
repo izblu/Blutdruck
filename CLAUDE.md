@@ -28,7 +28,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - **Code-Struktur (Umbau Stufe 1, erledigt):** Aufgeteilt in `index.html` (Struktur, ~285 Z.),
   `styles.css` (~290 Z.) und `app.js` (~790 Z.); eingebunden per `<link rel="stylesheet">` und
   `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien offline (Cache
-  `blutdruck-v12`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
+  `blutdruck-v13`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
   im `meta`-Store unter dem Schlüssel `'settings'` (`idbGetMeta`/`idbSetMeta`); nach dem Laden aus
@@ -100,6 +100,23 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   Fenster (Dialog) wird der Toast **in das Fenster gerendert**, damit er über dem Menü sichtbar **und**
   wischbar bleibt (ein modales Fenster macht alles außerhalb „unberührbar"/inert); beim Schließen des
   Fensters wandert eine noch sichtbare Meldung zurück in den Body.
+- **Bestätigen-Dialoge (`askConfirm`):** Die drei früheren Browser-`confirm()`-Popups sind durch
+  **einen** eigenen, gestaltbaren Dialog (`#confirmDlg`) ersetzt – einheitlicher Look in Hell/Dunkel,
+  mit Symbol-Kreis im Kopf. Zentrale Funktion `askConfirm(opts)` (Promise → `true`/`false`). Optionen:
+  `icon` (`trash`/`info`) + `tone` (`danger` = rot / `notice` = amber), `title`, `message` **oder**
+  `messageHTML` (für Fettdruck, nur App-eigene Texte), `confirmLabel`/`cancelLabel`, `danger` (roter
+  Füll-Knopf `.btn-fill-danger` statt blauem `.btn-fill`), `previewHTML` (zentrierte Vorschau-Karte),
+  `detailsText` (ausklappbares `<details>` „Technische Details"), `noteText` (Hinweiszeile mit
+  Info-Symbol) und `requireCheck` (Pflicht-Häkchen – hält den Bestätigen-Knopf deaktiviert, bis
+  angekreuzt; eigenes Kästchen: rot umrandet, gerundet, ohne Füllung). Der Meldungstext ist bewusst
+  **gedämpft** (`--muted`), hervorgehobene Teile via `<b>` in `--text`. Drei Aufrufstellen:
+  **Eintrag löschen** (`#edDelete`) mit Eintrags-Vorschau (Datum + Werte in `--c-sys/-dia/-pulse`) und
+  rotem „Löschen"; **Teilen-Fallback** in `shareBackup()` (amber, blaues „Speichern", Diagnose-Info in
+  „Technische Details" verstaut); **Alle Daten löschen** (`clearAllData()`) mit fetter Anzahl,
+  Info-Zeile zur erhaltenen Backup-Datei und Bestätigungs-Häkchen. Aufräumen des Zusatz-Blocks
+  (`#confirmExtra`) passiert beim **Aufbau**, nicht im `close`-Handler (sonst könnte ein verzögertes
+  Schließen-Ereignis frischen Inhalt leeren). `#confirmDlg` steht im HTML **nach** `editDlg`/`menuDlg`
+  (Toast-im-Dialog-Mechanismus). Die bestehenden Erfolgs-Toasts nach der Aktion bleiben erhalten.
 
 ## Namens-Konvention (Backup vs. CSV)
 „Backup …" = vollständige Sicherung/Wiederherstellung (Dateiendung **.txt**, Inhalt JSON, originalgetreu;
@@ -108,7 +125,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 
 ## Geparkte Aufgaben
 
-Stand 2026-06-30 gegen die Codebase geprüft und neu nach Priorität geordnet.
+Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
 ### 1. UI/UX-Modernisierung (zusammenhängender Block)
@@ -153,13 +170,20 @@ Stand 2026-06-30 gegen die Codebase geprüft und neu nach Priorität geordnet.
   - *Visualisierung:* Flows als **Grafiken** (build-frei, z. B. Mermaid in Markdown; Alternative SVG).
   Danach kann diese CLAUDE.md auf reinen Projektkontext verschlankt werden.
 
-### 3. Groß / zurückgestellt (Grundsatzentscheidung offen)
-- **Profile** (mehrere Personen, eigene Backup-Datei je Profil) — groß · Status offen. Treibt
-  Datenmodell (`entries` pro Profil), Backup-Handle pro Profil, Einstellungen pro Profil, UI-Wechsler.
+### 3. Zurückgestellt (niedrige Priorität)
 - **Umbau Stufe 2 – JS in Module** (`storage.js`/`backup.js`/`chart.js`/`ui.js`, eingebunden per
   `<script type="module">`) — mittel · problemlos (kein Logikwechsel, aber Sorgfalt wegen vieler
-  gegenseitiger Abhängigkeiten). An Profile gekoppelt; ruht bis dahin. (Stufe 1 – CSS & JS
-  auslagern – ist erledigt, siehe „Aktueller Stand".)
+  gegenseitiger Abhängigkeiten, allen voran Backup/Auto-Backup und Einstellungen/Theme, die quer
+  durch mehrere künftige Module greifen würden). War bisher an Profile gekoppelt, damit Speicher/
+  Backup nicht zweimal umgebaut werden – dieser Grund entfällt, da Profile gestrichen ist. Bleibt
+  für sich genommen sinnvoll: `app.js` ist mit ~790 Zeilen noch überschaubar, würde aber mit jeder
+  weiteren Funktion unübersichtlicher, und eine Aufteilung nach Zuständigkeit passt zum bisherigen
+  Vorgehen (siehe Stufe 1). Keine neue technische Hürde durch `type="module"`: Die App verlangt als
+  PWA ohnehin einen http(s)/localhost-Kontext (wegen des Service Workers), das sonst übliche
+  `file://`-CORS-Problem von ES-Modulen entsteht also nicht zusätzlich; `sw.js` müsste nur um die
+  neuen Modul-Dateien ergänzt werden. Ohne Team aber ohne Zeitdruck – zurückstellen, bis entweder
+  `app.js` spürbar unhandlich wird oder ohnehin größere Eingriffe an Speicher/Backup anstehen.
+  (Stufe 1 – CSS & JS auslagern – ist erledigt, siehe „Aktueller Stand".)
 
 ### 4. Gestrichen (geprüft 2026-06-30)
 - **CSV-Import** — redundant zu „Backup → Wiederherstellen"; CSV hat keine `id` → Dubletten,
@@ -168,3 +192,6 @@ Stand 2026-06-30 gegen die Codebase geprüft und neu nach Priorität geordnet.
   deckt den Bedarf ab; automatische Ableitung medizinisch heikel.
 - **Backup-teilen-Logik prüfen** — erledigt: „teilen", „speichern" und Auto-Backup bauen ihre Datei
   **immer frisch aus `entries`** (`backupBlob`); keine Mehrdeutigkeit zwischen mehreren Dateien.
+- **Profile** (mehrere Personen, eigene Backup-Datei je Profil) — Grundsatzentscheidung getroffen
+  (2026-07-01): wird nicht umgesetzt. War nie über die Doku hinaus begonnen, kein Code betroffen.
+  „Umbau Stufe 2" war an dieses Vorhaben gekoppelt und ist oben entsprechend angepasst.

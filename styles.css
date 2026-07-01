@@ -194,6 +194,31 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .btn-text{background:none;border:none;color:var(--primary);padding:10px;font-weight:600}
 .btn-danger{background:none;border:none;color:var(--danger);padding:10px;font-weight:600}
 .btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
+/* ---- Bestätigen-Rückfrage (#confirmDlg) ---- */
+.btn-fill-danger{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
+.btn-fill:disabled,.btn-fill-danger:disabled{opacity:.4;cursor:default}
+#confirmDlg .dlg-head{display:flex;align-items:center;gap:11px}
+.cdlg-ic{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto}
+.cdlg-ic svg{width:20px;height:20px}
+.cdlg-ic.tone-danger{background:color-mix(in srgb,var(--danger) 14%,var(--surface));color:var(--danger)}
+.cdlg-ic.tone-notice{background:color-mix(in srgb,var(--cat-y) 16%,var(--surface));color:var(--cat-y)}
+#confirmMsg{white-space:pre-line;color:var(--muted)}
+#confirmMsg b{color:var(--text);font-weight:700}
+.cdlg-prev{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-top:10px;text-align:center}
+.cdlg-prev .pd{font-size:.78rem;color:var(--muted)}
+.cdlg-prev .pv{font-size:1rem;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+.cdlg-det{margin-top:12px}
+.cdlg-det summary{font-size:.85rem;color:var(--muted);cursor:pointer;list-style:none}
+.cdlg-det summary::-webkit-details-marker{display:none}
+.cdlg-det summary::before{content:"› "}
+.cdlg-det[open] summary::before{content:"⌄ "}
+.cdlg-info{font-size:.8rem;color:var(--muted);margin-top:6px;word-break:break-word}
+.cdlg-note{display:flex;align-items:flex-start;gap:7px;color:var(--muted);font-size:.8rem;line-height:1.4;margin-top:11px}
+.cdlg-note svg{width:16px;height:16px;flex:0 0 auto;margin-top:1px}
+.cdlg-check{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:11px;margin-top:12px;cursor:pointer}
+.cdlg-check input{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:0 0 auto;margin:0;border:2px solid var(--danger);border-radius:6px;background:transparent;position:relative;cursor:pointer}
+.cdlg-check input:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--danger);border-width:0 2px 2px 0;transform:rotate(45deg)}
+.cdlg-check span{font-size:.92rem}
 .menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px}
 .menu-item:disabled{opacity:.5;cursor:default}
 .menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}

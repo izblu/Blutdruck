@@ -65,6 +65,55 @@ function swipeToast(card){
   card.addEventListener('pointerup',end); card.addEventListener('pointercancel',end);
 }
 
+/* Eigene Bestätigen-Rückfrage statt native confirm(): gestaltbar, Hell/Dunkel, mit Symbol.
+   Promise löst zu true (bestätigt) bzw. false (Abbrechen/Esc/Klick daneben). Optionen:
+   icon ('trash'|'info') + tone ('danger'|'notice'), title, message, confirmLabel, cancelLabel,
+   danger (roter Füll-Knopf statt blau), previewHTML (Vorschau-Karte), detailsText (ausklappbar),
+   requireCheck (Pflicht-Häkchen; schaltet den Bestätigen-Knopf erst frei). */
+const CONFIRM_ICON={
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M7 7l1 13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-13"/></svg>',
+  info:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+};
+function askConfirm(opts){
+  opts=opts||{};
+  const dlg=$('#confirmDlg'), extra=$('#confirmExtra'), ok=$('#confirmOk'), icon=$('#confirmIcon');
+  icon.innerHTML=opts.icon?(CONFIRM_ICON[opts.icon]||''):'';
+  icon.className='cdlg-ic'+(opts.tone?' tone-'+opts.tone:'');
+  icon.hidden=!opts.icon;
+  $('#confirmTitle').textContent=opts.title||'Sicher?';
+  const msg=$('#confirmMsg');
+  if(opts.messageHTML){ msg.innerHTML=opts.messageHTML; msg.hidden=false; }   // messageHTML nur mit App-eigenen Texten (kein Nutzer-Input)
+  else { msg.textContent=opts.message||''; msg.hidden=!opts.message; }
+  extra.innerHTML='';
+  if(opts.previewHTML) extra.insertAdjacentHTML('beforeend','<div class="cdlg-prev">'+opts.previewHTML+'</div>');
+  if(opts.detailsText){
+    extra.insertAdjacentHTML('beforeend','<details class="cdlg-det"><summary>Technische Details</summary><div class="cdlg-info"></div></details>');
+    extra.querySelector('.cdlg-info').textContent=opts.detailsText;
+  }
+  if(opts.noteText){                                 // Hinweiszeile mit Info-Symbol (z. B. Backup-Notiz)
+    extra.insertAdjacentHTML('beforeend','<div class="cdlg-note">'+CONFIRM_ICON.info+'<span></span></div>');
+    extra.querySelector('.cdlg-note span').textContent=opts.noteText;
+  }
+  ok.className=opts.danger?'btn-fill-danger':'btn-fill';
+  ok.textContent=opts.confirmLabel||'OK';
+  ok.disabled=!!opts.requireCheck;                 // bei Pflicht-Häkchen erst nach dem Ankreuzen aktiv
+  if(opts.requireCheck){
+    extra.insertAdjacentHTML('beforeend','<label class="cdlg-check"><input type="checkbox"><span></span></label>');
+    const chk=extra.querySelector('.cdlg-check input');
+    extra.querySelector('.cdlg-check span').textContent=opts.requireCheck;
+    chk.addEventListener('change',()=>{ ok.disabled=!chk.checked; });
+  }
+  $('#confirmCancel').textContent=opts.cancelLabel||'Abbrechen';
+  dlg.returnValue='';
+  dlg.showModal();
+  return new Promise(res=>{
+    dlg.addEventListener('close',function h(){       // Aufräumen passiert beim nächsten Aufbau (oben), nicht hier –
+      dlg.removeEventListener('close',h);            // sonst könnte ein verzögertes close-Ereignis frischen Inhalt löschen.
+      res(dlg.returnValue==='ok');
+    });
+  });
+}
+
 /* ---------- Speicherung ---------- */
 const LS_KEY='bp_entries', LS_SET='bp_settings';
 const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',
@@ -336,7 +385,10 @@ $('#edSave').addEventListener('click',()=>{
   $('#editDlg').close(); refreshData(); toast('Aktualisiert');
 });
 $('#edDelete').addEventListener('click',()=>{
-  if(confirm('Diesen Eintrag wirklich löschen?')){ removeEntry(editId); $('#editDlg').close(); refreshData(); toast('Eintrag gelöscht'); }
+  const e=entries.find(x=>x.id===editId);
+  const prev=e?('<div class="pd">'+fmtDate(e.ts)+' · '+fmtTime(e.ts)+'</div><div class="pv"><span style="color:var(--c-sys)">'+e.sys+'</span> / <span style="color:var(--c-dia)">'+e.dia+'</span> · Puls <span style="color:var(--c-pulse)">'+e.pulse+'</span></div>'):'';
+  askConfirm({icon:'trash',tone:'danger',danger:true,title:'Eintrag löschen?',message:'Dieser Eintrag wird dauerhaft entfernt.',previewHTML:prev,confirmLabel:'Löschen'})
+    .then(ok=>{ if(ok){ removeEntry(editId); $('#editDlg').close(); refreshData(); toast('Eintrag gelöscht'); } });
 });
 $('#edCancel').addEventListener('click',()=>$('#editDlg').close());
 
@@ -480,9 +532,12 @@ async function shareBackup(){
     // heruntergeladen wird. Technische Info nachgestellt (zum Vorlesen/Abfotografieren für die Diagnose).
     const err=e?((e.name||'Fehler')+(e.message?': '+e.message:'')):'Unbekannter Fehler';
     const info=err+' · '+act+' · '+mode+' · '+brand;
-    if(confirm('Das direkte Teilen hat dein Browser/Handy nicht erlaubt.\n\nStattdessen als Datei speichern (Download)?\n\n(Technische Info: '+info+')')){
-      download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert');
-    }
+    const wantSave=await askConfirm({
+      icon:'info',tone:'notice',title:'Teilen nicht möglich',
+      message:'Das direkte Teilen hat dein Browser oder Handy nicht erlaubt. Stattdessen als Datei speichern?',
+      detailsText:info,confirmLabel:'Speichern'
+    });
+    if(wantSave){ download(backupBlob(),backupName()); markBackedUp(); toast('Backup gespeichert'); }
   }
 }
 
@@ -595,7 +650,14 @@ function importJSON(file){
 /* Alle Messwerte löschen. Die externe Backup-Datei bleibt erhalten und wird NICHT überschrieben:
    Auto-Backup wird abgebrochen und die Verknüpfung gelöst. */
 async function clearAllData(){
-  if(!confirm('Wirklich ALLE Messwerte löschen? Das lässt sich nicht rückgängig machen.\n\nEine bereits gespeicherte Backup-Datei bleibt erhalten, wird aber nicht mehr automatisch aktualisiert.')) return;
+  const n=entries.length;
+  const ok=await askConfirm({
+    icon:'trash',tone:'danger',danger:true,title:'Alle Daten löschen?',
+    messageHTML:'Alle <b>'+n+' Messwerte</b> werden dauerhaft gelöscht. Das lässt sich nicht rückgängig machen.',
+    noteText:'Eine bereits gespeicherte Backup-Datei bleibt erhalten, wird aber nicht mehr automatisch aktualisiert.',
+    requireCheck:'Ja, ich möchte alle '+n+' Werte löschen',confirmLabel:'Alle löschen'
+  });
+  if(!ok) return;
   clearTimeout(_abT);                         // kein Auto-Backup der leeren Liste auslösen
   entries=[];
   try{ localStorage.removeItem(LS_KEY); }catch{}
@@ -734,6 +796,10 @@ $('#restoreWith').addEventListener('click',()=>{ $('#restoreDlg').close(); const
 $('#restoreOnly').addEventListener('click',()=>{ _pendingRestoreSettings=null; $('#restoreDlg').close(); });
 $('#restoreDlg').addEventListener('cancel',()=>{ _pendingRestoreSettings=null; });
 $('#restoreDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget){ _pendingRestoreSettings=null; e.currentTarget.close(); } });
+// Bestätigen-Rückfrage (#confirmDlg): OK setzt returnValue='ok', alles andere (Abbrechen/Esc/daneben) = Abbruch.
+$('#confirmOk').addEventListener('click',()=>{ const d=$('#confirmDlg'); d.returnValue='ok'; d.close(); });
+$('#confirmCancel').addEventListener('click',()=>{ const d=$('#confirmDlg'); d.returnValue=''; d.close(); });
+$('#confirmDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.currentTarget.close(); });
 // Toast nicht im gerade geschlossenen Fenster „einsperren": zurück in den Body holen, damit eine
 // noch sichtbare Meldung nahtlos unten stehen bleibt (z. B. „Backup geteilt" vor dem Schließen).
 $$('dialog').forEach(d=>d.addEventListener('close',()=>{ const w=$('#toast'); if(w.parentElement===d) document.body.appendChild(w); }));
