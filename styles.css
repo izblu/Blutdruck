@@ -1,32 +1,70 @@
+/* ---------- Schrift (lokal eingebunden, offline; keine externen Anfragen) ----------
+   Hanken Grotesk als variable Schrift – EINE Datei deckt alle Gewichte 400–800 ab. */
+@font-face{
+  font-family:'Hanken Grotesk';
+  font-style:normal;
+  font-weight:400 800;
+  font-display:swap;
+  src:url('./fonts/hanken-grotesk.woff2') format('woff2');
+}
+
+/* ---------- Design-Tokens (neues System aus dem Claude-Design-Entwurf) ----------
+   Farbklima „Kühl Klinisch", Formensprache „Weich" sind fest gebacken (keine Nutzer-
+   Einstellung). Die alten Namen (--surface/--text/--border/--primary/--cat-*) bleiben als
+   Aliasse erhalten, damit die noch nicht umgebauten Screens weiterlaufen; sie werden beim
+   Umbau der jeweiligen Screens nach und nach durch die neuen Tokens ersetzt.
+   --accent wird zusätzlich per JS (applyTheme/applyAccent) je nach Akzentwahl + Hell/Dunkel
+   überschrieben; die Werte hier sind nur Fallback vor dem ersten Skript-Lauf. */
 :root{
-  --bg:#eef2f7; --surface:#ffffff; --surface-2:#f6f8fb; --menu-bg:#eaf0fa;
-  --text:#1f2937; --muted:#6b7280; --border:#e3e8ef;
-  --primary:#2563eb; --primary-ink:#ffffff;
-  --c-sys:#dc2626; --c-dia:#2563eb; --c-pulse:#16a34a;
-  --cat-g:#16a34a; --cat-y:#d97706; --cat-r:#dc2626;
-  --danger:#dc2626;
+  /* Struktur (hell) */
+  --bg:#eef1f6; --surf:#ffffff; --surf2:#f2f5f9; --ink:#131a26; --muted:#68717f; --line:#e5e9f0;
+  --accent:#2b6cf0;
+  /* Ampel (hell) – je Kategorie ink/soft/bar */
+  --g-ink:#15803d; --g-soft:#e7f6ec; --g-bar:#16a34a;
+  --y-ink:#b26a00; --y-soft:#fdf6ea; --y-bar:#e08600;
+  --r-ink:#c0261f; --r-soft:#fdeaea; --r-bar:#dc2626;
+  --pulse-ink:#be185d; --pulse-soft:#fdeaf1; --pulse-bar:#e11d68;
+  /* Form & Schrift */
+  --numfont:'Hanken Grotesk',system-ui,sans-serif;
+  --cardr:22px; --cardbw:1px; --cardsh:none;
   --shadow:0 1px 3px rgba(16,24,40,.08),0 1px 2px rgba(16,24,40,.06);
   --panel-shadow:0 4px 14px rgba(16,24,40,.10);
   --radius:14px;
+  /* Aliasse auf die alten Token-Namen (Übergang bis zum Umbau der Screens) */
+  --surface:var(--surf); --surface-2:var(--surf2); --menu-bg:var(--bg);
+  --text:var(--ink); --border:var(--line);
+  --primary:var(--accent); --primary-ink:#ffffff;
+  --cat-g:var(--g-bar); --cat-y:var(--y-bar); --cat-r:var(--r-bar);
+  --danger:var(--r-bar);
+  --c-sys:var(--r-bar); --c-dia:var(--accent); --c-pulse:var(--pulse-bar);
 }
+/* Dunkel: einmal automatisch (Systemeinstellung), einmal fest gewählt. Gleiche Werte. */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
-    --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
-    --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
+    --bg:#0e131c; --surf:#171e2a; --surf2:#1f2836; --ink:#eef2f8; --muted:#97a1b3; --line:#2b3543;
+    --accent:#5b8cf5;
+    --g-ink:#4ade80; --g-soft:rgba(34,197,94,.15); --g-bar:#22c55e;
+    --y-ink:#fbbf24; --y-soft:rgba(234,179,8,.15); --y-bar:#eab308;
+    --r-ink:#f87171; --r-soft:rgba(239,68,68,.16); --r-bar:#ef4444;
+    --pulse-ink:#fb7aa8; --pulse-soft:rgba(225,29,104,.20); --pulse-bar:#fb7aa8;
+    --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0f172a; --surface:#1e293b; --surface-2:#172033; --menu-bg:#26344a;
-  --text:#e5e9f0; --muted:#94a3b8; --border:#334155;
-  --primary:#3b82f6; --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
+  --bg:#0e131c; --surf:#171e2a; --surf2:#1f2836; --ink:#eef2f8; --muted:#97a1b3; --line:#2b3543;
+  --accent:#5b8cf5;
+  --g-ink:#4ade80; --g-soft:rgba(34,197,94,.15); --g-bar:#22c55e;
+  --y-ink:#fbbf24; --y-soft:rgba(234,179,8,.15); --y-bar:#eab308;
+  --r-ink:#f87171; --r-soft:rgba(239,68,68,.16); --r-bar:#ef4444;
+  --pulse-ink:#fb7aa8; --pulse-soft:rgba(225,29,104,.20); --pulse-bar:#fb7aa8;
+  --shadow:0 1px 3px rgba(0,0,0,.4); --panel-shadow:0 6px 18px rgba(0,0,0,.45);
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}   /* sonst überschreibt z. B. .reminder{display:flex} das hidden-Attribut */
 html,body{margin:0;padding:0}
 body{
   background:var(--bg); color:var(--text);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  font-family:'Hanken Grotesk',system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
   font-size:16px; line-height:1.4;
   -webkit-text-size-adjust:100%;
   padding-bottom:calc(72px + env(safe-area-inset-bottom));

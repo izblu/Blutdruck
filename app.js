@@ -116,7 +116,7 @@ function askConfirm(opts){
 
 /* ---------- Speicherung ---------- */
 const LS_KEY='bp_entries', LS_SET='bp_settings';
-const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',
+const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',accent:'ozean',
   reminderDays:3,firstDirtyAt:null,snoozeUntil:0,
   thr:{sysY:130,sysR:140,diaY:85,diaR:90}};
 
@@ -494,7 +494,7 @@ function exportCSV(){
 function backupName(){ return `blutdruck-backup-${stampDateTime()}.txt`; }
 const BACKUP_VER=2;
 /* Nur die „Vorlieben" sichern – geräte-interne Erinnerungs-Merker (firstDirtyAt/snoozeUntil) bleiben außen vor. */
-function backupSettings(){ const {colorDots,guideLines,theme,reminderDays,thr}=settings; return {colorDots,guideLines,theme,reminderDays,thr}; }
+function backupSettings(){ const {colorDots,guideLines,theme,accent,reminderDays,thr}=settings; return {colorDots,guideLines,theme,accent,reminderDays,thr}; }
 function backupData(){ return {app:'blutdruck',version:BACKUP_VER,exportedAt:new Date().toISOString(),entries,settings:backupSettings()}; }
 function backupBlob(){ return new Blob([JSON.stringify(backupData(),null,2)],{type:'text/plain'}); }
 function exportJSON(){
@@ -630,7 +630,7 @@ function offerSettingsRestore(s){
   $('#restoreDlg').showModal();          // eigenes Fenster statt Browser-confirm (sprechende Knopf-Texte)
 }
 function applyBackupSettings(s){
-  ['colorDots','guideLines','theme','reminderDays','thr'].forEach(k=>{ if(s[k]!==undefined) settings[k]=s[k]; });
+  ['colorDots','guideLines','theme','accent','reminderDays','thr'].forEach(k=>{ if(s[k]!==undefined) settings[k]=s[k]; });
   settings.thr=Object.assign({},SET_DEFAULT.thr,settings.thr||{});
   saveSettings(); applyTheme(); applySettingsUI(); renderTable();
   if(currentTab==='chart') renderChart();
@@ -763,7 +763,37 @@ $('#reminderLater').addEventListener('click',()=>{ settings.snoozeUntil=Date.now
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) updateReminder(); });
 
 /* ---------- Einstellungen / Menü ---------- */
-function applyTheme(){ const t=settings.theme; if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t); }
+/* Akzentfarben: je 5 kuratierte Töne mit eigenem Hell-/Dunkel-Wert (bewusst kühler Blau–
+   Violett–Cyan-Bogen + Neutral, damit sie sich klar von Ampel und Puls abheben). */
+const ACCENT_SETS={
+  ozean:{light:'#2b6cf0',dark:'#5b8cf5'},
+  indigo:{light:'#4f46e5',dark:'#7c84f5'},
+  violett:{light:'#7c3aed',dark:'#9670f0'},
+  petrol:{light:'#0e83a6',dark:'#26a7c9'},
+  graphit:{light:'#4a5566',dark:'#7e8a9e'}
+};
+/* Effektiver Hell/Dunkel-Zustand: „dark"/„light" fest, sonst der Systemwunsch. */
+function resolveDark(){
+  const t=settings.theme;
+  if(t==='dark') return true;
+  if(t==='light') return false;
+  return !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+}
+/* --accent hängt von Akzentwahl UND Hell/Dunkel ab → per JS auf :root setzen. Die ganze App
+   folgt automatisch, da alles über var(--accent) läuft (Alias --primary → --accent). */
+function applyAccent(){
+  const set=ACCENT_SETS[settings.accent]||ACCENT_SETS.ozean;
+  document.documentElement.style.setProperty('--accent', set[resolveDark()?'dark':'light']);
+}
+function applyTheme(){
+  const t=settings.theme;
+  if(t==='auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme',t);
+  applyAccent();
+}
+/* Im Auto-Modus dem Systemwechsel folgen: die Struktur-/Ampelfarben schaltet CSS selbst um,
+   nur der modus-abhängige Akzentwert muss nachgezogen werden. */
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(settings.theme==='auto') applyAccent(); });
 function applyThrUI(){
   const t=settings.thr;
   $('#thrSysY').value=t.sysY; $('#thrDiaY').value=t.diaY;
