@@ -108,17 +108,6 @@ main{max-width:760px;margin:0 auto;padding:16px}
 .btn:active{background:var(--surface-2)}
 .btn.active{border-color:var(--primary);color:var(--primary)}
 
-.filters{padding:14px;margin-bottom:12px;display:none}
-.filters.open{display:block}
-.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.chip-range{padding:7px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--text);font-size:.9rem}
-.chip-range.active{background:var(--primary);color:#fff;border-color:var(--primary)}
-.frow{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;margin:8px 0}
-.frow label{font-size:.85rem;color:var(--muted)}
-.filters input{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text)}
-.filters .full{grid-template-columns:auto 1fr}
-.filters-actions{display:flex;justify-content:flex-end;margin-top:6px}
-
 /* ---- Table ---- */
 table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden}
 thead th{
@@ -141,23 +130,6 @@ tbody tr:active{background:var(--surface-2)}
 .note-ic{font-size:.8rem;margin-left:2px}
 .empty{padding:36px 16px;text-align:center;color:var(--muted)}
 
-/* ---- Chart ---- */
-.chart-wrap{padding:14px;position:relative}
-#chart{width:100%;display:block;touch-action:pan-y}
-#chartEmpty{padding:40px 10px;text-align:center;color:var(--muted)}
-.legend{display:flex;gap:16px;justify-content:center;margin-top:10px;font-size:.85rem;flex-wrap:wrap}
-.legend span{display:inline-flex;align-items:center;gap:6px}
-.legend i{width:12px;height:3px;border-radius:2px;display:inline-block}
-#chartTip{
-  position:absolute;pointer-events:none;background:var(--text);color:var(--surface);
-  font-size:.8rem;padding:7px 9px;border-radius:8px;transform:translate(-50%,-115%);
-  white-space:nowrap;opacity:0;transition:opacity .1s;z-index:5;line-height:1.3;
-}
-#chartTip.show{opacity:.95}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-top:14px}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;text-align:center}
-.stat span{display:block;font-size:.72rem;color:var(--muted)}
-.stat b{font-size:1.15rem;font-variant-numeric:tabular-nums}
 
 /* ---- Bottom nav + FAB ---- */
 nav.bottom{
@@ -634,12 +606,80 @@ input[type=checkbox].sw:checked::after{left:21px}
 .det-tile svg{width:19px;height:19px}
 .det-tile-del{color:#c0261f}
 
+/* ===================== Diagramm (Stufe 5, Variante A) =====================
+   Eigener Vollbild-Screen wie der Verlauf: eigener Kopf „Diagramm", scrollbarer Rumpf
+   (Karte mit SVG-Grafik + Statistik + Kontext), unten die Steuerleiste über der Tab-Bar. */
+#tab-chart.screen.active{animation:riseIn .3s ease both}
+.dg-head{flex:none;display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:8px 18px 6px}
+.dg-title{font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.dg-sub{font-size:12.5px;color:var(--muted);font-weight:500;margin-top:1px}
+.dg-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px 12px;display:flex;flex-direction:column;gap:11px}
+
+.dg-card{background:var(--surf);border:1px solid var(--line);border-radius:var(--cardr);padding:13px 14px 11px;display:flex;flex-direction:column;gap:9px}
+.dg-cardhead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.dg-val{display:flex;align-items:baseline;gap:7px}
+.dg-val-num{font-size:30px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.dg-val-num.both{font-size:29px}
+.dg-val-slash{color:var(--muted);font-weight:600;padding:0 1px;opacity:.55}
+.dg-val-side{display:flex;flex-direction:column;line-height:1.15}
+.dg-val-unit{font-size:11px;font-weight:700;color:var(--ink)}
+.dg-val-sub{font-size:10px;font-weight:600;color:var(--muted)}
+.dg-status{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap}
+.dg-status .d{width:7px;height:7px;border-radius:50%}
+.dg-chart{animation:fadein .28s ease}
+.dg-chart svg{display:block;width:100%}
+.dg-empty{padding:34px 10px;text-align:center;color:var(--muted);font-size:13px}
+
+.dg-legend{display:flex;align-items:center;font-size:10px;font-weight:700;padding-top:2px}
+.dg-legend.both{justify-content:center;gap:14px}
+.dg-legend.single{justify-content:space-between}
+.dg-legend .avg{display:inline-flex;align-items:center;gap:5px}
+.dg-legend .avg i{width:15px;height:0;border-top:2px dashed;display:inline-block}
+.dg-legend .cnts{display:inline-flex;align-items:center;gap:9px}
+
+.dg-stat3{display:flex;gap:8px}
+.dg-stat{flex:1;background:var(--surf);border:1px solid var(--line);border-radius:var(--cardr);padding:9px 8px;text-align:center}
+.dg-stat-l{font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.05em}
+.dg-stat-v{font-size:15px;font-weight:800;margin-top:2px}
+.dg-statgrid{background:var(--surf);border:1px solid var(--line);border-radius:var(--cardr);padding:11px 14px 12px;display:grid;grid-template-columns:30px 1fr 1fr 1fr;row-gap:8px;column-gap:4px;align-items:center}
+.dg-sg-h{text-align:center;line-height:1.1}
+.dg-sg-h b{display:block;font-size:11px;font-weight:800}
+.dg-sg-h span{font-size:8px;font-weight:700;color:var(--muted);letter-spacing:.03em}
+.dg-sg-rl{font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:.04em}
+.dg-sg-v{text-align:center;font-size:15px;font-weight:800}
+.dg-ctx{font-size:12px;line-height:1.5;color:var(--muted);padding:0 2px}
+.dg-ctx b{color:var(--ink);font-weight:600}
+
+/* Steuerleiste unten (über der Tab-Bar): Reihe · Puls · Zeitraum */
+.dg-controls{flex:none;position:relative;display:flex;gap:8px;align-items:center;padding:9px 16px 11px;background:var(--surf);border-top:1px solid var(--line)}
+.dg-seg{flex:1;display:flex;background:var(--surf2);border-radius:999px;padding:3px}
+.dg-seg-btn{flex:1;text-align:center;padding:7px 4px;border:none;background:none;border-radius:999px;font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;transition:background-color .2s ease,color .2s ease}
+.dg-seg-btn.active{color:var(--accent);background:var(--surf);box-shadow:0 1px 2px rgba(20,30,50,.12)}
+.dg-pulse{flex:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px 6px 9px;border:none;border-radius:999px;background:var(--surf2);color:var(--muted);font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background-color .2s ease,color .2s ease}
+.dg-pulse svg{width:16px;height:16px}
+.dg-pulse.active{background:var(--pulse-soft);color:var(--pulse-ink)}
+.dg-cal{flex:none;width:40px;height:38px;display:grid;place-items:center;border:none;border-radius:999px;background:var(--surf2);color:var(--muted);cursor:pointer;transition:background-color .2s ease,color .2s ease}
+.dg-cal svg{width:16px;height:16px}
+.dg-cal.active{background:var(--accent);color:#fff}
+.dg-pop{position:absolute;right:16px;bottom:calc(100% + 6px);background:var(--surf);border-radius:16px;padding:7px;display:flex;flex-direction:column;gap:6px;box-shadow:0 14px 34px -10px rgba(20,30,50,.4);border:1px solid var(--line);width:160px;z-index:6;animation:fadein .18s ease}
+.dg-pop[hidden]{display:none}
+.dg-pop button{padding:9px 13px;border:none;border-radius:11px;background:var(--surf2);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;text-align:left;cursor:pointer}
+.dg-pop button.active{background:var(--accent);color:#fff}
+
+/* SVG-Animationen der Grafik: Linie „zeichnen", Punkte „aufpoppen" (Klassen via JS, nur ohne reduced-motion) */
+.dg-line{stroke-dasharray:1200;stroke-dashoffset:1200;animation:drawLine .8s ease forwards}
+.dg-pt{transform-box:fill-box;transform-origin:center;animation:popPt .3s ease both}
+@keyframes drawLine{to{stroke-dashoffset:0}}
+@keyframes popPt{0%{opacity:0;transform:scale(0)}60%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+
 @keyframes rowIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes slideinright{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
 @keyframes markerGlide{from{opacity:0;transform:translate(-50%,-50%) scale(.5)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 @media (prefers-reduced-motion:reduce){
-  #tab-table.screen.active,#tab-detail.screen.active{animation:none}
+  #tab-table.screen.active,#tab-detail.screen.active,#tab-chart.screen.active{animation:none}
   .vrow{animation:none!important}
-  .det-scale-mk,.sheet-panel,.sheet-scrim{animation:none}
+  .det-scale-mk,.sheet-panel,.sheet-scrim,.dg-chart,.dg-pop{animation:none}
+  .dg-line,.dg-pt{animation:none;stroke-dashoffset:0}
   .vh-ink{transition:none}
 }

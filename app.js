@@ -554,22 +554,12 @@ $('#rsApply').addEventListener('click',()=>{
   let from=$('#rsFrom').value, to=$('#rsTo').value;
   if(from&&to&&from>to){ const t=from; from=to; to=t; }   // vertauscht → richtig herum
   filters.from=from; filters.to=to; verlaufRange='custom';
-  closeRangeSheet(); renderTable();
+  closeRangeSheet(); renderTable(); if(currentTab==='chart') renderChart();   // Zeitraum ist mit dem Diagramm geteilt
 });
 document.addEventListener('keydown',ev=>{ if(ev.key==='Escape'&&!$('#rangeSheet').hidden){ ev.preventDefault(); closeRangeSheet(); } });
 
-/* ----- Zeitraum-Chips (nur noch vom Diagramm genutzt; wird in Stufe 5 vereinheitlicht) ----- */
-function syncFilterInputs(){ Object.keys(filters).forEach(k=>{const el=$('#f_'+k); if(el) el.value=filters[k];}); }
-function clearRangeChips(){ $$('.chip-range').forEach(c=>c.classList.remove('active')); }
-function setActiveRangeChip(days){
-  $$('.chip-range').forEach(c=>c.classList.toggle('active',+c.dataset.days===days));
-}
-$$('.chip-range').forEach(c=>c.addEventListener('click',()=>{
-  const d=+c.dataset.days;
-  if(d){ filters.from=new Date(Date.now()-d*864e5).toISOString().slice(0,10); filters.to=''; }
-  else { filters.from=''; filters.to=''; }
-  syncFilterInputs(); setActiveRangeChip(d); refreshData();
-}));
+/* Die früheren Zeitraum-Chips des Diagramms sind entfallen: Verlauf und Diagramm teilen sich jetzt
+   denselben Zeitraum (verlaufRange + filters.from/to, gesetzt über applyVerlaufRange bzw. das Von–Bis-Sheet). */
 /* ---------- Detail (Einzelmessung) ----------
    Öffnet aus einer Verlauf-Zeile: großer Sys/Dia-Wert in Ampelfarbe, Status-Pille, Puls, volles Datum
    + Tageszeit, „Position im Ampelbereich" (Skala mit Marker), datengetriebener Kontext-Satz, Notiz.
@@ -646,86 +636,183 @@ $('#detDelete').addEventListener('click',()=>{
     .then(ok=>{ if(ok){ removeEntry(detailId); showTab('table'); toast('Eintrag gelöscht'); } });
 });
 
-/* ---------- Diagramm (Canvas) ---------- */
-let chartGeo=null;
-const niceStep=raw=>[10,20,25,50,100].find(s=>s>=raw)||100;
+/* ---------- Diagramm (Variante A, SVG) ----------
+   Eigener Vollbild-Screen. Unten die Steuerleiste: Reihe (Sys/Dia/Beide) · Puls-Umschalter ·
+   Zeitraum-Popover (teilt sich Zeitraum + getFiltered mit dem Verlauf). Grafik: Verbindungslinien
+   + Ampel-Farbpunkte (catVal), gestrichelte Ø-Linie, KEINE Hintergrund-Zonen. Einzelmodus mit
+   Zonen-Labels + 3 Statistik-Kacheln; „Beide" mit zwei Ø-Werten + Statistik-Tabelle (Sys/Dia/Puls
+   × Ø/Max/Min) und optionaler rosa Puls-Spur. Datenlogik unverändert (nur neue Darstellung). */
+let diagSeries='both', diagPulse=false;
+const prefersReduce=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
+const DG_SHORT={'7':'7 Tage','30':'30 Tage','90':'90 Tage','custom':'Zeitraum'};
+
+/* Kennzahlen einer Reihe (Sys oder Dia) inkl. Ampel-Verteilung – deckungsgleich mit dem Entwurf. */
+function seriesStats(list,key){
+  const t=settings.thr, thY=key==='sys'?t.sysY:t.diaY, thR=key==='sys'?t.sysR:t.diaR;
+  const vals=list.map(m=>m[key]), n=vals.length||1;
+  let green=0,yellow=0,red=0;
+  vals.forEach(v=>{ const c=catVal(v,thY,thR); if(c==='r')red++; else if(c==='y')yellow++; else green++; });
+  const avg=Math.round(vals.reduce((a,b)=>a+b,0)/n);
+  return { thY, thR, green, yellow, red, avg,
+    max:vals.length?Math.max(...vals):0, min:vals.length?Math.min(...vals):0, cat:catVal(avg,thY,thR) };
+}
+/* Kontext-Satz aus der Ampel-Verteilung (rein beschreibend, keine Wertung). */
+function contextDiag(g,ye,rd,cat){
+  const strong = cat==='g' ? 'Dein Schnitt liegt im Ziel.'
+               : cat==='y' ? 'Dein Schnitt ist erhöht.'
+               : 'Dein Schnitt ist zu hoch.';
+  const rest = rd>0 ? rd+(rd===1?' Wert lag':' Werte lagen')+' im roten Bereich, der Rest überwiegend im Ziel.'
+             : ye>0 ? 'Keine roten Werte — '+ye+' erhöht, der Rest im Ziel.'
+             : 'Alle Werte im Ziel — sehr gut.';
+  return { strong, rest };
+}
+
+/* Baut die eigentliche SVG-Grafik (viewBox 268×H). Farben werden auf konkrete Werte aufgelöst,
+   damit sie in Hell/Dunkel stimmen (renderChart läuft bei Theme-Wechsel erneut). */
+function buildDiagChart(list){
+  const t=settings.thr, both=diagSeries==='both', showPulse=diagPulse;
+  const keys=both?['sys','dia']:[diagSeries], n=list.length, anim=!prefersReduce();
+  const xL=14,xR=232,bpTop=12,bpBottom=140, chartH=showPulse?172:164, datesY=showPulse?168:158;
+  const R={ ink:cssVar('--ink'), muted:cssVar('--muted'), accent:cssVar('--accent'), surf:cssVar('--surf'),
+    gInk:cssVar('--g-ink'), yInk:cssVar('--y-ink'), rInk:cssVar('--r-ink'),
+    gBar:cssVar('--g-bar'), yBar:cssVar('--y-bar'), rBar:cssVar('--r-bar'),
+    pBar:cssVar('--pulse-bar'), pInk:cssVar('--pulse-ink') };
+  const barOf=c=>c==='r'?R.rBar:c==='y'?R.yBar:R.gBar;
+
+  let lo=Infinity,hi=-Infinity;
+  keys.forEach(k=>{ const y=k==='sys'?t.sysY:t.diaY, r=k==='sys'?t.sysR:t.diaR;
+    list.forEach(m=>{ if(m[k]<lo)lo=m[k]; if(m[k]>hi)hi=m[k]; });
+    hi=Math.max(hi,r); lo=Math.min(lo,y-8); });
+  const vmax=hi+8, vmin=lo-8, span=(vmax-vmin)||1;
+  const Y=v=>+(bpBottom-(v-vmin)/span*(bpBottom-bpTop)).toFixed(1);
+  const X=i=>n<=1?(xL+xR)/2:+(xL+i*(xR-xL)/(n-1)).toFixed(1);
+  let s='';
+
+  if(both){                                            // waagerechte Hilfslinien nur im „Beide"-Modus
+    for(let v=Math.ceil(vmin/20)*20; v<=vmax; v+=20){
+      s+='<line x1="0" y1="'+Y(v)+'" x2="'+xR+'" y2="'+Y(v)+'" stroke="'+R.ink+'" stroke-opacity=".07" stroke-width="1"/>';
+      s+='<text x="236" y="'+(Y(v)+3)+'" font-size="7.5" font-weight="700" fill="'+R.muted+'">'+v+'</text>';
+    }
+  }
+  keys.forEach(k=>{                                    // gestrichelte Ø-Linie je Reihe
+    const st=seriesStats(list,k);
+    s+='<line x1="0" y1="'+Y(st.avg)+'" x2="'+xR+'" y2="'+Y(st.avg)+'" stroke="'+R.accent+'" stroke-width="1.5" stroke-dasharray="4 3" opacity=".85"/>';
+    s+='<text x="2" y="'+(Y(st.avg)-3)+'" font-size="8" font-weight="800" fill="'+R.accent+'">Ø</text>';
+  });
+  if(!both){                                           // Zonen-Labels rechts (Einzelmodus)
+    const st=seriesStats(list,diagSeries);
+    const zl=(txt,val,col)=>'<text x="236" y="'+(Y(val)+3)+'" font-size="8" font-weight="800" fill="'+col+'" text-anchor="end">'+txt+'</text>';
+    s+=zl('Zu hoch',(st.thR+vmax)/2,R.rInk)+zl('Erhöht',(st.thY+st.thR)/2,R.yInk)+zl('Im Ziel',(vmin+st.thY)/2,R.gInk);
+  }
+  keys.forEach(k=>{                                    // Verbindungslinien (dezent)
+    const pts=list.map((m,i)=>X(i)+','+Y(m[k])).join(' ');
+    s+='<polyline'+(anim?' class="dg-line"':'')+' points="'+pts+'" fill="none" stroke="'+R.accent+'" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>';
+  });
+  keys.forEach(k=>{                                    // Datenpunkte in Ampelfarbe
+    const yy=k==='sys'?t.sysY:t.diaY, rr=k==='sys'?t.sysR:t.diaR;
+    list.forEach((m,i)=>{ const last=!both&&i===n-1, rad=last?4.6:3.4, c=catVal(m[k],yy,rr);
+      s+='<circle'+(anim?' class="dg-pt"':'')+' cx="'+X(i)+'" cy="'+Y(m[k])+'" r="'+rad+'" fill="'+barOf(c)+'" stroke="'+R.surf+'" stroke-width="1.4"'+(anim?' style="animation-delay:'+(0.34+i*0.03).toFixed(2)+'s"':'')+'/>';
+    });
+  });
+  if(showPulse){                                       // eigene rosa Puls-Spur unten
+    const pv=list.map(m=>m.pulse), pmin=Math.min(...pv)-6, pmax=Math.max(...pv)+6, laneTop=146,laneBot=160;
+    const PY=v=>+(laneBot-(v-pmin)/((pmax-pmin)||1)*(laneBot-laneTop)).toFixed(1);
+    s+='<polyline'+(anim?' class="dg-line"':'')+' points="'+list.map((m,i)=>X(i)+','+PY(m.pulse)).join(' ')+'" fill="none" stroke="'+R.pBar+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>';
+    list.forEach((m,i)=>{ s+='<circle'+(anim?' class="dg-pt"':'')+' cx="'+X(i)+'" cy="'+PY(m.pulse)+'" r="2.5" fill="'+R.pBar+'" stroke="'+R.surf+'" stroke-width="1.1"'+(anim?' style="animation-delay:'+(0.4+i*0.03).toFixed(2)+'s"':'')+'/>'; });
+    s+='<text x="236" y="'+(PY(pmax)+8)+'" font-size="7.5" font-weight="800" fill="'+R.pInk+'">bpm</text>';
+  }
+  const dlab=(idx,anchor)=>{ const m=list[idx]; if(!m) return ''; const d=new Date(m.ts);
+    return '<text x="'+X(idx)+'" y="'+datesY+'" font-size="8" font-weight="600" fill="'+R.muted+'" text-anchor="'+anchor+'">'+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.</text>'; };
+  s+=dlab(0,'start'); if(n>2) s+=dlab(Math.floor((n-1)/2),'middle'); s+=dlab(n-1,'end');
+
+  return '<svg viewBox="0 0 268 '+chartH+'" width="100%" style="display:block">'+s+'</svg>';
+}
 
 function renderChart(){
+  applyVerlaufRange();                                 // gemeinsamer Zeitraum mit dem Verlauf
   const list=getFiltered().slice().sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-  renderStats(list);
-  const canvas=$('#chart'), wrap=canvas.parentElement;
-  const empty=$('#chartEmpty');
-  if(!list.length){ empty.style.display='block'; canvas.style.display='none'; chartGeo=null; return; }
-  empty.style.display='none'; canvas.style.display='block';
+  const both=diagSeries==='both', short=DG_SHORT[verlaufRange]||'30 Tage';
+  $('#dgSub').textContent='Blutdruck · '+short+' · '+list.length+(list.length===1?' Messung':' Messungen');
+  $$('#dgSeg .dg-seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.s===diagSeries));
+  $('#dgPulse').classList.toggle('active',diagPulse);
+  $$('#dgPop button').forEach(b=>b.classList.toggle('active',b.dataset.r===verlaufRange));
 
-  const dpr=window.devicePixelRatio||1, cssW=wrap.clientWidth-28, cssH=260;
-  canvas.style.height=cssH+'px';
-  canvas.width=Math.max(1,Math.floor(cssW*dpr)); canvas.height=Math.floor(cssH*dpr);
-  const ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,cssW,cssH);
+  const body=$('#dgBody');
+  if(!list.length){ body.innerHTML='<div class="dg-card"><div class="dg-empty">Noch keine Daten im gewählten Zeitraum.</div></div>'; return; }
 
-  const padL=34,padR=10,padT=12,padB=24, W=cssW-padL-padR, H=cssH-padT-padB, x0=padL, y0=padT;
-  let mn=Infinity,mx=-Infinity;
-  list.forEach(e=>['sys','dia','pulse'].forEach(k=>{ if(e[k]<mn)mn=e[k]; if(e[k]>mx)mx=e[k]; }));
-  if(settings.guideLines){ const t=settings.thr; mn=Math.min(mn,t.diaY); mx=Math.max(mx,t.sysR); }
-  mn=Math.floor((mn-10)/10)*10; mx=Math.ceil((mx+10)/10)*10; if(mn===mx){mn-=10;mx+=10;}
+  const sst=seriesStats(list,'sys'), dst=seriesStats(list,'dia'), st=diagSeries==='dia'?dst:sst;
+  const pulseAvg=Math.round(list.reduce((a,m)=>a+m.pulse,0)/list.length);
+  let og=0,oy=0,orr=0;                                 // Gesamt-Ampel je Messung (schlechterer von Sys/Dia)
+  list.forEach(m=>{ const ov=worseCat(catValFor('sys',m.sys),catValFor('dia',m.dia)); if(ov==='r')orr++; else if(ov==='y')oy++; else og++; });
+  const overallCat=worseCat(sst.cat,dst.cat);
 
-  const tMin=new Date(list[0].ts).getTime(), tMax=new Date(list.at(-1).ts).getTime(), spanT=(tMax-tMin)||1;
-  const X=t=>x0+((new Date(t).getTime()-tMin)/spanT)*W;
-  const Y=v=>y0+(1-(v-mn)/(mx-mn))*H;
-
-  ctx.font='11px system-ui,sans-serif'; ctx.textBaseline='middle';
-  const border=cssVar('--border'), muted=cssVar('--muted');
-  const step=niceStep((mx-mn)/4);
-  ctx.lineWidth=1;
-  for(let v=Math.ceil(mn/step)*step; v<=mx; v+=step){
-    const y=Y(v);
-    ctx.strokeStyle=border; ctx.globalAlpha=.6; ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+W,y); ctx.stroke(); ctx.globalAlpha=1;
-    ctx.fillStyle=muted; ctx.textAlign='right'; ctx.fillText(String(v),x0-5,y);
+  /* Kopf der Karte: großer Ø-Wert (+ Status-Pille im Einzelmodus). */
+  let valHtml, statusHtml='';
+  if(both){
+    valHtml='<div class="dg-val"><span class="dg-val-num both tnum">'
+      +'<span style="color:'+CAT_INK[sst.cat]+'">'+sst.avg+'</span>'
+      +'<span class="dg-val-slash">/</span>'
+      +'<span style="color:'+CAT_INK[dst.cat]+'">'+dst.avg+'</span></span>'
+      +'<span class="dg-val-side"><span class="dg-val-unit">mmHg</span><span class="dg-val-sub">Ø · '+short+'</span></span></div>';
+  } else {
+    valHtml='<div class="dg-val"><span class="dg-val-num tnum" style="color:'+CAT_INK[st.cat]+'">'+st.avg+'</span>'
+      +'<span class="dg-val-side"><span class="dg-val-unit">mmHg</span><span class="dg-val-sub">Ø '+(diagSeries==='sys'?'Systolisch':'Diastolisch')+'</span></span></div>';
+    statusHtml='<span class="dg-status" style="background:'+CAT_SOFT[st.cat]+';color:'+CAT_INK[st.cat]+'"><span class="d" style="background:'+CAT_BAR[st.cat]+'"></span>'+CAT_LABEL[st.cat]+'</span>';
   }
-  if(settings.guideLines){
-    const t=settings.thr; // Linien an den Ampel-Schwellenwerten (gelb/rot)
-    [[t.sysY,'--cat-y'],[t.diaY,'--cat-y'],[t.sysR,'--cat-r'],[t.diaR,'--cat-r']].forEach(([v,c])=>{
-      if(v>=mn&&v<=mx){ const y=Y(v); ctx.save(); ctx.strokeStyle=cssVar(c); ctx.globalAlpha=.4; ctx.setLineDash([4,4]);
-        ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+W,y); ctx.stroke(); ctx.restore(); }
-    });
-  }
-  ctx.fillStyle=muted; ctx.textBaseline='top'; ctx.textAlign='center';
-  const ticks=list.length<=1?[list[0]]:[list[0],list[Math.floor((list.length-1)/2)],list.at(-1)];
-  ticks.forEach(e=>{ const x=Math.min(Math.max(X(e.ts),x0+16),x0+W-16); ctx.fillText(fmtDate(e.ts),x,y0+H+6); });
 
-  [['sys','--c-sys'],['dia','--c-dia'],['pulse','--c-pulse']].forEach(([k,c])=>{
-    const col=cssVar(c); ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=2; ctx.beginPath();
-    list.forEach((e,i)=>{ const x=X(e.ts),y=Y(e[k]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke();
-    list.forEach(e=>{ ctx.beginPath(); ctx.arc(X(e.ts),Y(e[k]),2.6,0,7); ctx.fill(); });
-  });
-  chartGeo={list,X};
+  /* Legende unter der Grafik. */
+  let legHtml;
+  if(both){
+    legHtml='<div class="dg-legend both">'
+      +'<span style="color:var(--g-ink)">'+og+' Im Ziel</span>'
+      +'<span style="color:var(--y-ink)">'+oy+' Erhöht</span>'
+      +'<span style="color:var(--r-ink)">'+orr+' Zu hoch</span></div>';
+  } else {
+    legHtml='<div class="dg-legend single">'
+      +'<span class="avg" style="color:var(--accent)"><i style="border-color:var(--accent)"></i>Ø '+st.avg+'</span>'
+      +'<span class="cnts"><span style="color:var(--g-ink)">'+st.green+' Im Ziel</span>'
+      +'<span style="color:var(--y-ink)">'+st.yellow+' Erhöht</span>'
+      +'<span style="color:var(--r-ink)">'+st.red+' Zu hoch</span></span></div>';
+  }
+
+  const cardHtml='<div class="dg-card"><div class="dg-cardhead">'+valHtml+statusHtml+'</div>'
+    +'<div class="dg-chart">'+buildDiagChart(list)+'</div>'+legHtml+'</div>';
+
+  /* Statistik: „Beide" als Tabelle, Einzelmodus als drei Kacheln. */
+  let statHtml;
+  if(both){
+    const pv=list.map(m=>m.pulse), pMax=Math.max(...pv), pMin=Math.min(...pv);
+    const head=(name,unit,pink)=>'<div class="dg-sg-h"><b style="color:'+(pink?'var(--pulse-ink)':'var(--ink)')+'">'+name+'</b><span>'+unit+'</span></div>';
+    const vc=(v,col)=>'<div class="dg-sg-v tnum" style="color:'+col+'">'+v+'</div>';
+    const rl=x=>'<div class="dg-sg-rl">'+x+'</div>';
+    statHtml='<div class="dg-statgrid"><div></div>'+head('Sys','mmHg')+head('Dia','mmHg')+head('Puls','bpm',true)
+      +rl('Ø')+vc(sst.avg,CAT_INK[sst.cat])+vc(dst.avg,CAT_INK[dst.cat])+vc(pulseAvg,'var(--pulse-ink)')
+      +rl('MAX')+vc(sst.max,'var(--ink)')+vc(dst.max,'var(--ink)')+vc(pMax,'var(--ink)')
+      +rl('MIN')+vc(sst.min,'var(--ink)')+vc(dst.min,'var(--ink)')+vc(pMin,'var(--ink)')+'</div>';
+  } else {
+    const sc=(l,v,col)=>'<div class="dg-stat"><div class="dg-stat-l">'+l+'</div><div class="dg-stat-v tnum" style="color:'+col+'">'+v+'</div></div>';
+    statHtml='<div class="dg-stat3">'+sc('HÖCHSTER',st.max,'var(--r-ink)')+sc('NIEDRIGSTER',st.min,'var(--g-ink)')+sc('MESSUNGEN',list.length,'var(--ink)')+'</div>';
+  }
+
+  const ctx=both?contextDiag(og,oy,orr,overallCat):contextDiag(st.green,st.yellow,st.red,st.cat);
+  body.innerHTML=cardHtml+statHtml+'<div class="dg-ctx"><b>'+ctx.strong+'</b> '+ctx.rest+'</div>';
 }
-function renderStats(list){
-  const el=$('#stats');
-  if(!list.length){ el.innerHTML='<div class="stat" style="grid-column:1/-1"><span class="muted">Keine Daten im gewählten Zeitraum.</span></div>'; return; }
-  const avg=k=>Math.round(list.reduce((s,e)=>s+e[k],0)/list.length);
-  const mn=k=>Math.min(...list.map(e=>e[k])), mx=k=>Math.max(...list.map(e=>e[k]));
-  el.innerHTML=
-    `<div class="stat"><span>Messungen</span><b>${list.length}</b></div>`+
-    `<div class="stat"><span>Ø Sys/Dia</span><b>${avg('sys')}/${avg('dia')}</b></div>`+
-    `<div class="stat"><span>Ø Puls</span><b>${avg('pulse')}</b></div>`+
-    `<div class="stat"><span>Sys</span><b>${mn('sys')}–${mx('sys')}</b></div>`+
-    `<div class="stat"><span>Dia</span><b>${mn('dia')}–${mx('dia')}</b></div>`;
-}
-/* Tooltip */
-function chartPoint(ev){
-  if(!chartGeo) return;
-  const r=ev.currentTarget.getBoundingClientRect(), px=ev.clientX-r.left;
-  let best=null,bd=Infinity;
-  chartGeo.list.forEach(e=>{ const d=Math.abs(chartGeo.X(e.ts)-px); if(d<bd){bd=d;best=e;} });
-  if(!best) return;
-  const tip=$('#chartTip');
-  tip.innerHTML=`<b>${fmtDate(best.ts)} ${fmtTime(best.ts)}</b><br>Sys ${best.sys} · Dia ${best.dia} · Puls ${best.pulse}`;
-  tip.style.left=Math.min(Math.max(chartGeo.X(best.ts),60),r.width-60)+'px';
-  tip.style.top='30px'; tip.classList.add('show');
-  clearTimeout(tip._t); tip._t=setTimeout(()=>tip.classList.remove('show'),2200);
-}
-$('#chart').addEventListener('pointerdown',chartPoint);
+
+/* Steuerleiste: Reihe · Puls · Zeitraum-Popover. */
+function openDgPop(){ $('#dgPop').hidden=false; $('#dgCal').classList.add('active'); }
+function closeDgPop(){ $('#dgPop').hidden=true; $('#dgCal').classList.remove('active'); }
+$('#dgSeg').addEventListener('click',ev=>{ const b=ev.target.closest('.dg-seg-btn'); if(!b) return;
+  if(diagSeries!==b.dataset.s){ diagSeries=b.dataset.s; closeDgPop(); renderChart(); } });
+$('#dgPulse').addEventListener('click',()=>{ diagPulse=!diagPulse; closeDgPop(); renderChart(); });
+$('#dgCal').addEventListener('click',()=>{ $('#dgPop').hidden?openDgPop():closeDgPop(); });
+$('#dgPop').addEventListener('click',ev=>{ const b=ev.target.closest('button'); if(!b) return;
+  closeDgPop();
+  if(b.dataset.r==='custom'){ openRangeSheet(); return; }
+  verlaufRange=b.dataset.r; renderChart();
+});
+/* Tippen außerhalb schließt das Zeitraum-Popover. */
+document.addEventListener('click',ev=>{ if($('#dgPop').hidden) return;
+  if(!ev.target.closest('#dgPop')&&!ev.target.closest('#dgCal')) closeDgPop(); });
 
 /* ---------- Dashboard (Startseite) ----------
    Kennzahlen nach dashboard-spezifikation.md: rollierende Fenster (7/30 Tage), Trend gegen die
@@ -1230,8 +1317,8 @@ function showTab(name){
   currentTab=name;
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
   $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  // Screens mit eigenem Kopf (kein „Blutdruck"-Header): Dashboard, Erfassen, Verlauf, Detail
-  const hdr=$('header.app'); if(hdr) hdr.hidden=['dashboard','capture','table','detail'].includes(name);
+  // Screens mit eigenem Kopf (kein „Blutdruck"-Header): Dashboard, Erfassen, Verlauf, Detail, Diagramm
+  const hdr=$('header.app'); if(hdr) hdr.hidden=['dashboard','capture','table','detail','chart'].includes(name);
   // Vollbild ohne Tab-Bar (eigene Fußzeile): Erfassen + Detail
   const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture'||name==='detail')?'none':'';
   if(name==='dashboard') renderDashboard();
@@ -1246,7 +1333,10 @@ function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(
 /* Höhe der Tab-Bar messen → CSS-Variable --navh (der Verlauf-Screen lässt genau diesen Platz unten frei). */
 function setNavH(){ const n=$('nav.bottom'); if(n&&n.offsetHeight) document.documentElement.style.setProperty('--navh',n.offsetHeight+'px'); }
 window.addEventListener('load',setNavH);
-window.addEventListener('resize',()=>{ setNavH(); if(currentTab==='chart') renderChart(); if(currentTab==='table') positionVInk(); });
+// Das Diagramm ist ein SVG mit viewBox (skaliert flüssig mit) → kein Neuzeichnen bei Resize nötig.
+window.addEventListener('resize',()=>{ setNavH(); if(currentTab==='table') positionVInk(); });
+// SVG-Farben werden beim Zeichnen fest aufgelöst → bei System-Hell/Dunkel-Wechsel (Theme „Auto") neu zeichnen.
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(currentTab==='chart') renderChart(); });
 
 /* ---------- PWA: Manifest + Icon + Service Worker ---------- */
 const SVG_ICON='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'+
@@ -1267,7 +1357,6 @@ async function init(){
   await requestPersistence();          // Speicher dauerhaft anfordern
   await initStorage();                 // Daten aus IndexedDB laden / migrieren
   applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
-  syncFilterInputs(); setActiveRangeChip(0);
   updateReminder(); setNavH();
   showTab('dashboard');   // Verlauf rendert beim ersten Öffnen (showTab → renderTable)
 

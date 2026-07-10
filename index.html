@@ -170,27 +170,35 @@
     </div>
   </section>
 
-  <!-- ============ DIAGRAMM ============ -->
-  <section class="tab" id="tab-chart">
-    <div class="card filters open" style="margin-bottom:12px">
-      <div class="chips" id="rangeChips2" style="margin:0">
-        <button class="chip-range" data-days="7">7 Tage</button>
-        <button class="chip-range" data-days="30">30 Tage</button>
-        <button class="chip-range" data-days="90">90 Tage</button>
-        <button class="chip-range active" data-days="0">Alle</button>
+  <!-- ============ DIAGRAMM (eigener Vollbild-Screen wie Verlauf) ============ -->
+  <section class="tab screen screen-tab" id="tab-chart">
+    <div class="dg-head">
+      <div>
+        <div class="dg-title">Diagramm</div>
+        <div class="dg-sub" id="dgSub">Blutdruck</div>
+      </div>
+      <!-- Export-Symbol (Design) bewusst weggelassen – gehört zum geparkten Arzt-Report -->
+    </div>
+    <!-- Karte (Wert/Status + SVG-Grafik + Legende) · Statistik · Kontext füllt renderChart() -->
+    <div class="dg-body" id="dgBody"></div>
+    <!-- Steuerleiste unten (über der Tab-Bar): Reihe · Puls · Zeitraum -->
+    <div class="dg-controls">
+      <div class="dg-seg" id="dgSeg" role="group" aria-label="Reihe wählen">
+        <button class="dg-seg-btn" data-s="sys" type="button">Sys</button>
+        <button class="dg-seg-btn" data-s="dia" type="button">Dia</button>
+        <button class="dg-seg-btn active" data-s="both" type="button">Beide</button>
+      </div>
+      <button class="dg-pulse" id="dgPulse" type="button" aria-label="Puls ein-/ausblenden">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.3l-1.4-1.3C5.4 14.2 2 11.1 2 7.6 2 5 4 3 6.5 3c1.7 0 3.3 1 4.1 2.4h.8C12.2 4 13.8 3 15.5 3 18 3 20 5 20 7.6c0 3.5-3.4 6.6-8.6 11.4L12 20.3z"/></svg>Puls</button>
+      <button class="dg-cal" id="dgCal" type="button" aria-label="Zeitraum wählen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg></button>
+      <div class="dg-pop" id="dgPop" hidden>
+        <button data-r="7" type="button">7 Tage</button>
+        <button data-r="30" type="button">30 Tage</button>
+        <button data-r="90" type="button">90 Tage</button>
+        <button data-r="custom" type="button">Eigener Zeitraum</button>
       </div>
     </div>
-    <div class="card chart-wrap">
-      <canvas id="chart" height="260"></canvas>
-      <div id="chartTip"></div>
-      <div id="chartEmpty" style="display:none">Noch keine Daten zum Anzeigen.</div>
-      <div class="legend">
-        <span><i style="background:var(--c-sys)"></i>Systolisch</span>
-        <span><i style="background:var(--c-dia)"></i>Diastolisch</span>
-        <span><i style="background:var(--c-pulse)"></i>Puls</span>
-      </div>
-    </div>
-    <div class="stats" id="stats"></div>
   </section>
 </main>
 
