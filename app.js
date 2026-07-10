@@ -478,44 +478,87 @@ document.addEventListener('keydown',ev=>{
 });
 
 /* ---------- Tabelle ---------- */
-function updateSortIndicators(){
-  $$('th[data-key]').forEach(th=>{
-    th.querySelector('.arrow').textContent = th.dataset.key===sortKey ? (sortDir==='asc'?'▲':'▼') : '';
-  });
+/* ---------- Verlauf (Liste) ----------
+   Chronologische Liste (neu, ersetzt die alte Tabelle). Sys und Dia je in ihrer eigenen Ampelfarbe
+   (catVal), Zeilenpunkt = der schlechtere von beiden. Zeitraum unten: 7/30/90 Tage + „Zeitraum"
+   (Von–Bis-Sheet). Zeile antippen → Detail-Screen. Nutzt die geteilte Filter-Basis (filters → getFiltered). */
+let verlaufRange='30';
+const RANK={n:0,g:1,y:2,r:3};
+const worseCat=(a,b)=>RANK[b]>RANK[a]?b:a;
+const IC_CHEV='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
+const IC_NOTE_SM='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14M5 10h14M5 15h8"/></svg>';
+
+/* 7/30/90 → filters.from/to setzen; 'custom' behält die im Zeitraum-Sheet gewählten Werte. */
+function applyVerlaufRange(){
+  const k=verlaufRange;
+  if(k==='7'||k==='30'||k==='90'){ filters.from=new Date(Date.now()-(+k)*864e5).toISOString().slice(0,10); filters.to=''; }
 }
 function renderTable(){
-  const list=getSorted(), tb=$('#tbody'); tb.innerHTML='';
-  $('#emptyTable').style.display=list.length?'none':'block';
-  for(const e of list){
-    const tr=document.createElement('tr');
-    tr.tabIndex=0; tr.setAttribute('role','button');
-    const dot=settings.colorDots?`<span class="dot ${category(e)}"></span>`:'';
-    const note=e.note?`<span class="note-ic" title="${escapeHtml(e.note)}">📝</span>`:'';
-    tr.innerHTML=`<td class="c-date">${dot}<div><div class="d">${fmtDate(e.ts)}</div>`+
-      `<div class="t muted">${fmtTime(e.ts)} ${note}</div></div></td>`+
-      `<td class="num">${e.sys}</td><td class="num">${e.dia}</td><td class="num">${e.pulse}</td>`;
-    tr.addEventListener('click',()=>openEdit(e.id));
-    tr.addEventListener('keydown',ev=>{ if(ev.key==='Enter') openEdit(e.id); });
-    tb.appendChild(tr);
+  applyVerlaufRange();
+  const list=getFiltered().slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const rangeLabel={'7':'Letzte 7 Tage','30':'Letzte 30 Tage','90':'Letzte 90 Tage','custom':'Eigener Zeitraum'}[verlaufRange];
+  $('#vhSub').textContent=rangeLabel+' · '+list.length+' '+(list.length===1?'Messung':'Messungen');
+  $$('#vFilter .vh-pill').forEach(p=>p.classList.toggle('active',p.dataset.r===verlaufRange));
+  const vl=$('#vList'), ve=$('#vEmpty');
+  if(!list.length){
+    vl.innerHTML='';
+    ve.innerHTML=!entries.length
+      ? 'Noch keine Messung erfasst.<br>Tippe unten auf das <b style="color:var(--accent)">+</b>.'
+      : 'Keine Messungen in diesem Zeitraum.';
+    ve.hidden=false;
+  }else{
+    ve.hidden=true;
+    let html='';
+    list.forEach((e,i)=>{
+      const d=new Date(e.ts);
+      const dateLabel=WD_SHORT[d.getDay()]+', '+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.';
+      const time=pad2(d.getHours())+':'+pad2(d.getMinutes());
+      const sc=catValFor('sys',e.sys), dc=catValFor('dia',e.dia), oc=worseCat(sc,dc);
+      const delay=Math.min(i*0.04,0.32);
+      html+='<button class="vrow" type="button" data-id="'+e.id+'" style="animation-delay:'+delay+'s">'
+        +'<span class="vrow-dot" style="background:'+CAT_BAR[oc]+'"></span>'
+        +'<span class="vrow-main"><span class="vrow-date">'+dateLabel+'</span>'
+        +'<span class="vrow-sub">'+time+(e.note?IC_NOTE_SM:'')+'</span></span>'
+        +'<span class="vrow-v tnum" style="color:'+CAT_INK[sc]+'">'+e.sys+'</span>'
+        +'<span class="vrow-v tnum" style="color:'+CAT_INK[dc]+'">'+e.dia+'</span>'
+        +'<span class="vrow-p tnum">'+e.pulse+'</span>'
+        +'<span class="vrow-chev">'+IC_CHEV+'</span>'
+        +'</button>';
+    });
+    vl.innerHTML=html;
   }
-  updateSortIndicators();
+  if(currentTab==='table') requestAnimationFrame(positionVInk);
 }
-$$('th[data-key]').forEach(th=>th.addEventListener('click',()=>{
-  const k=th.dataset.key;
-  if(sortKey===k) sortDir=sortDir==='asc'?'desc':'asc';
-  else { sortKey=k; sortDir=k==='ts'?'desc':'asc'; }
-  renderTable();
-}));
+/* Gleitende Markierung unter die aktive Zeitraum-Pille legen (misst deren Position). */
+function positionVInk(){
+  const bar=$('#vFilter'); if(!bar) return;
+  const active=bar.querySelector('.vh-pill.active'), ink=$('#vInk');
+  if(!active||!ink) return;
+  ink.style.top=active.offsetTop+'px'; ink.style.height=active.offsetHeight+'px';
+  ink.style.width=active.offsetWidth+'px'; ink.style.transform='translateX('+active.offsetLeft+'px)';
+  ink.style.opacity='1';
+}
+/* Zeile antippen → Detail. */
+$('#vList').addEventListener('click',ev=>{ const b=ev.target.closest('.vrow'); if(b) showDetail(b.dataset.id); });
+/* Zeitraum-Pillen. */
+$('#vFilter').addEventListener('click',ev=>{
+  const b=ev.target.closest('.vh-pill'); if(!b) return;
+  if(b.dataset.r==='custom'){ openRangeSheet(); return; }
+  verlaufRange=b.dataset.r; renderTable();
+});
+/* Zeitraum-Sheet (Von–Bis). */
+function openRangeSheet(){ $('#rsFrom').value=filters.from||''; $('#rsTo').value=filters.to||''; $('#rangeSheet').hidden=false; }
+function closeRangeSheet(){ $('#rangeSheet').hidden=true; }
+$('#rangeSheet').addEventListener('click',ev=>{ if(ev.target.closest('[data-act=close]')) closeRangeSheet(); });
+$('#rsApply').addEventListener('click',()=>{
+  let from=$('#rsFrom').value, to=$('#rsTo').value;
+  if(from&&to&&from>to){ const t=from; from=to; to=t; }   // vertauscht → richtig herum
+  filters.from=from; filters.to=to; verlaufRange='custom';
+  closeRangeSheet(); renderTable();
+});
+document.addEventListener('keydown',ev=>{ if(ev.key==='Escape'&&!$('#rangeSheet').hidden){ ev.preventDefault(); closeRangeSheet(); } });
 
-/* ----- Filter-Bedienung ----- */
-$('#filterBtn').addEventListener('click',()=>{
-  const p=$('#filterPanel'); p.classList.toggle('open');
-  $('#filterBtn').classList.toggle('active',p.classList.contains('open'));
-});
-Object.keys(filters).forEach(k=>{
-  const el=$('#f_'+k); if(!el) return;
-  el.addEventListener('input',()=>{ filters[k]=el.value; clearRangeChips(); refreshData(); });
-});
+/* ----- Zeitraum-Chips (nur noch vom Diagramm genutzt; wird in Stufe 5 vereinheitlicht) ----- */
 function syncFilterInputs(){ Object.keys(filters).forEach(k=>{const el=$('#f_'+k); if(el) el.value=filters[k];}); }
 function clearRangeChips(){ $$('.chip-range').forEach(c=>c.classList.remove('active')); }
 function setActiveRangeChip(days){
@@ -527,38 +570,81 @@ $$('.chip-range').forEach(c=>c.addEventListener('click',()=>{
   else { filters.from=''; filters.to=''; }
   syncFilterInputs(); setActiveRangeChip(d); refreshData();
 }));
-function resetView(){
-  sortKey='ts'; sortDir='desc';
-  Object.keys(filters).forEach(k=>filters[k]='');
-  syncFilterInputs(); setActiveRangeChip(0); refreshData();
-  toast('Eingabe zurückgesetzt','notice');
-}
-$('#resetBtn').addEventListener('click',resetView);
-$('#resetBtn2').addEventListener('click',resetView);
+/* ---------- Detail (Einzelmessung) ----------
+   Öffnet aus einer Verlauf-Zeile: großer Sys/Dia-Wert in Ampelfarbe, Status-Pille, Puls, volles Datum
+   + Tageszeit, „Position im Ampelbereich" (Skala mit Marker), datengetriebener Kontext-Satz, Notiz.
+   Aktionen unten: Zurück · Bearbeiten (→ geführte Eingabe im Bearbeiten-Modus) · Löschen (askConfirm). */
+let detailId=null;
+const IC_CAL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 3v4M16 3v4"/></svg>';
+const IC_SUN='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>';
+const IC_MOON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const IC_NOTE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5h14M5 10h14M5 15h8"/></svg>';
+const TOD_LABEL={morgens:'Morgen','tagsüber':'Tages',abends:'Abend'};
+const todOf=h=>h<11?'morgens':h<17?'tagsüber':'abends';
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
-/* ---------- Bearbeiten / Löschen ---------- */
-let editId=null;
-function openEdit(id){
-  const e=entries.find(x=>x.id===id); if(!e) return;
-  editId=id;
-  $('#edDt').value=toLocalInput(e.ts);
-  $('#edSys').value=e.sys; $('#edDia').value=e.dia; $('#edPulse').value=e.pulse;
-  $('#edNote').value=e.note||'';
-  $('#editDlg').showModal();
+/* Kontext-Satz: Vergleich mit dem Schnitt derselben Tageszeit (morgens/tagsüber/abends). */
+function detContext(e){
+  const tod=todOf(new Date(e.ts).getHours());
+  const same=entries.filter(x=>todOf(new Date(x.ts).getHours())===tod);
+  const avg=k=>Math.round(same.reduce((a,x)=>a+x[k],0)/same.length);
+  const as=avg('sys'), ad=avg('dia'), diff=e.sys-as, lbl=TOD_LABEL[tod];
+  let strong;
+  if(diff>=8) strong='Deutlich über deinem '+lbl+'-Schnitt';
+  else if(diff>=3) strong='Etwas über deinem '+lbl+'-Schnitt';
+  else if(diff<=-3) strong='Unter deinem '+lbl+'-Schnitt';
+  else strong='Im Bereich deines '+lbl+'-Schnitts';
+  return '<b>'+strong+'</b> ('+as+'/'+ad+') der letzten Wochen.';
 }
-$('#edSave').addEventListener('click',()=>{
-  const sys=+$('#edSys').value, dia=+$('#edDia').value, pulse=+$('#edPulse').value, dt=$('#edDt').value;
-  if(!dt||!Number.isFinite(sys)||!Number.isFinite(dia)||!Number.isFinite(pulse)){ toast('Bitte alle Werte ausfüllen','notice'); return; }
-  updateEntry(editId,{ts:fromLocalInput(dt),sys,dia,pulse,note:$('#edNote').value.trim()});
-  $('#editDlg').close(); refreshData(); toast('Aktualisiert');
-});
-$('#edDelete').addEventListener('click',()=>{
-  const e=entries.find(x=>x.id===editId);
-  const prev=e?('<div class="pd">'+fmtDate(e.ts)+' · '+fmtTime(e.ts)+'</div><div class="pv"><span style="color:var(--c-sys)">'+e.sys+'</span> / <span style="color:var(--c-dia)">'+e.dia+'</span> · Puls <span style="color:var(--c-pulse)">'+e.pulse+'</span></div>'):'';
+
+function showDetail(id){ detailId=id; showTab('detail'); }
+function renderDetail(id){
+  const e=entries.find(x=>x.id===id);
+  if(!e){ showTab('table'); return; }
+  const sc=catValFor('sys',e.sys), dc=catValFor('dia',e.dia), oc=worseCat(sc,dc);
+  const d=new Date(e.ts), tod=todOf(d.getHours());
+  const fullDate=d.toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const time=pad2(d.getHours())+':'+pad2(d.getMinutes()), t=settings.thr;
+  const sysPct=clamp((e.sys-90)/80*100,4,96), diaPct=clamp((e.dia-50)/60*100,4,96);
+  /* Skala-Verlauf grün/gelb/rot – Umschlagpunkte aus den eingestellten Schwellenwerten. */
+  const grad=(dom0,span,y,r)=>{ const yp=clamp((y-dom0)/span*100,0,100), rp=clamp((r-dom0)/span*100,0,100);
+    return 'linear-gradient(90deg,var(--g-soft) 0 '+yp+'%,var(--y-soft) '+yp+'% '+rp+'%,var(--r-soft) '+rp+'% 100%)'; };
+  const scaleRow=(lab,valTxt,valColor,g,pct,mk)=>
+    '<div class="det-scale-row"><div class="det-scale-top">'
+    +'<span class="det-scale-lab">'+lab+'</span>'
+    +'<span class="det-scale-val tnum" style="color:'+valColor+'">'+valTxt+'</span></div>'
+    +'<div class="det-scale-bar" style="background:'+g+'"><span class="det-scale-mk" style="left:'+pct+'%;background:'+mk+'"></span></div></div>';
+
+  let html='<div class="det-hero">'
+    +'<span class="det-pill" style="background:'+CAT_SOFT[oc]+';color:'+CAT_INK[oc]+'"><span class="d" style="background:'+CAT_BAR[oc]+'"></span>'+CAT_LABEL[oc]+'</span>'
+    +'<div class="det-nums">'
+      +'<div class="det-col"><span class="det-num tnum" style="color:'+CAT_INK[sc]+'">'+e.sys+'</span><span class="det-num-l" style="color:'+CAT_INK[sc]+'">SYS</span></div>'
+      +'<span class="det-slash">/</span>'
+      +'<div class="det-col"><span class="det-num tnum" style="color:'+CAT_INK[dc]+'">'+e.dia+'</span><span class="det-num-l" style="color:'+CAT_INK[dc]+'">DIA</span></div>'
+    +'</div>'
+    +'<div class="det-meta">mmHg<span class="sep"></span><span class="hb">'+IC_HEART+'<b class="tnum">'+e.pulse+'</b> Puls</span></div>'
+  +'</div>';
+  html+='<div class="det-card det-date"><div class="det-date-ic">'+IC_CAL+'</div>'
+    +'<div class="det-date-main"><div class="det-date-1">'+fullDate+'</div>'
+    +'<div class="det-date-2">'+time+'<span class="sep"></span>'+(tod==='abends'?IC_MOON:IC_SUN)+tod+'</div></div></div>';
+  html+='<div class="det-card det-scale"><div class="det-scale-h">POSITION IM AMPELBEREICH</div>'
+    +scaleRow('Systolisch',e.sys+' · '+CAT_LABEL[sc],CAT_INK[sc],grad(90,80,t.sysY,t.sysR),sysPct,CAT_BAR[sc])
+    +scaleRow('Diastolisch',e.dia+' · '+CAT_LABEL[dc],CAT_INK[dc],grad(50,60,t.diaY,t.diaR),diaPct,CAT_BAR[dc])
+  +'</div>';
+  html+='<div class="det-ctx">'+detContext(e)+'</div>';
+  if(e.note) html+='<div class="det-card det-note">'+IC_NOTE+'<div class="det-note-txt">„'+escapeHtml(e.note)+'"</div></div>';
+  $('#detBody').innerHTML=html;
+}
+/* Detail-Aktionen: Zurück / Bearbeiten / Löschen. */
+$('#detBack').addEventListener('click',()=>showTab('table'));
+$('#detEdit').addEventListener('click',()=>{ const e=entries.find(x=>x.id===detailId); if(e) startCapture(e,'detail'); });
+$('#detDelete').addEventListener('click',()=>{
+  const e=entries.find(x=>x.id===detailId); if(!e) return;
+  const prev='<div class="pd">'+fmtDate(e.ts)+' · '+fmtTime(e.ts)+'</div>'
+    +'<div class="pv"><span style="color:'+CAT_INK[catValFor('sys',e.sys)]+'">'+e.sys+'</span> / <span style="color:'+CAT_INK[catValFor('dia',e.dia)]+'">'+e.dia+'</span> · Puls '+e.pulse+'</div>';
   askConfirm({icon:'trash',tone:'danger',danger:true,title:'Eintrag löschen?',message:'Dieser Eintrag wird dauerhaft entfernt.',previewHTML:prev,confirmLabel:'Löschen'})
-    .then(ok=>{ if(ok){ removeEntry(editId); $('#editDlg').close(); refreshData(); toast('Eintrag gelöscht'); } });
+    .then(ok=>{ if(ok){ removeEntry(detailId); showTab('table'); toast('Eintrag gelöscht'); } });
 });
-$('#edCancel').addEventListener('click',()=>$('#editDlg').close());
 
 /* ---------- Diagramm (Canvas) ---------- */
 let chartGeo=null;
@@ -1144,16 +1230,23 @@ function showTab(name){
   currentTab=name;
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
   $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  const hdr=$('header.app'); if(hdr) hdr.hidden=(name==='dashboard'||name==='capture');  // Dashboard/Erfassen bringen eigenen Kopf mit
-  const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture')?'none':'';     // Erfassen ist Vollbild (eigenes X + Speichern)
+  // Screens mit eigenem Kopf (kein „Blutdruck"-Header): Dashboard, Erfassen, Verlauf, Detail
+  const hdr=$('header.app'); if(hdr) hdr.hidden=['dashboard','capture','table','detail'].includes(name);
+  // Vollbild ohne Tab-Bar (eigene Fußzeile): Erfassen + Detail
+  const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture'||name==='detail')?'none':'';
   if(name==='dashboard') renderDashboard();
+  if(name==='table') renderTable();
+  if(name==='detail') renderDetail(detailId);
   if(name==='chart') renderChart();
 }
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
-function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
-function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
-window.addEventListener('resize',()=>{ if(currentTab==='chart') renderChart(); });
+function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
+function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
+/* Höhe der Tab-Bar messen → CSS-Variable --navh (der Verlauf-Screen lässt genau diesen Platz unten frei). */
+function setNavH(){ const n=$('nav.bottom'); if(n&&n.offsetHeight) document.documentElement.style.setProperty('--navh',n.offsetHeight+'px'); }
+window.addEventListener('load',setNavH);
+window.addEventListener('resize',()=>{ setNavH(); if(currentTab==='chart') renderChart(); if(currentTab==='table') positionVInk(); });
 
 /* ---------- PWA: Manifest + Icon + Service Worker ---------- */
 const SVG_ICON='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'+
@@ -1175,7 +1268,8 @@ async function init(){
   await initStorage();                 // Daten aus IndexedDB laden / migrieren
   applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
   syncFilterInputs(); setActiveRangeChip(0);
-  renderTable(); updateReminder();
-  showTab('dashboard');
+  updateReminder(); setNavH();
+  showTab('dashboard');   // Verlauf rendert beim ersten Öffnen (showTab → renderTable)
+
 }
 init();

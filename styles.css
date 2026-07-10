@@ -516,3 +516,130 @@ input[type=checkbox].sw:checked::after{left:21px}
   .caret{animation:none}
   .cap-ink,.cap-progress span{transition:none}
 }
+
+/* ============================================================
+   Verlauf (Liste) & Detail (Einzelmessung)
+   Beide sind eigene Vollbild-Screens (feste Kopf-/Fußzeilen, eigener Scrollbereich).
+   ============================================================ */
+.tnum{font-family:var(--numfont);font-variant-numeric:tabular-nums}
+
+/* Vollbild-Screen: von oben bis (Verlauf) knapp über der Navigation bzw. (Detail) ganz unten.
+   WICHTIG: hier KEIN display setzen – sonst würde .screen das .tab{display:none} (gleiche Spezifität,
+   später im Code) aushebeln und der Screen läge auch inaktiv als fixe Fläche über allem. Das display
+   steuert allein die .active-Regel unten. */
+.screen{
+  position:fixed;top:0;left:0;right:0;bottom:0;
+  max-width:760px;margin-inline:auto;z-index:15;
+  background:var(--bg);padding-top:env(safe-area-inset-top);
+}
+.screen-tab{bottom:var(--navh,74px)}                 /* Verlauf: Platz für die sichtbare Tab-Bar lassen */
+.tab.screen.active{display:flex;flex-direction:column}   /* schlägt .tab{display:none} + .tab.active{display:block} */
+#tab-table.screen.active{animation:riseIn .3s ease both}
+#tab-detail.screen.active{animation:slideinright .3s cubic-bezier(.22,.61,.36,1) both}
+
+/* ---- Verlauf: Kopf + Spaltenüberschrift ---- */
+.vh-head{flex:none;display:flex;align-items:flex-end;justify-content:space-between;padding:8px 18px 6px}
+.vh-title{font-size:22px;font-weight:800;letter-spacing:-.02em;color:var(--ink)}
+.vh-sub{font-size:12.5px;color:var(--muted);font-weight:500}
+.vh-colh{flex:none;display:flex;align-items:center;padding:4px 18px 5px;font-size:9.5px;font-weight:800;color:var(--muted);letter-spacing:.06em}
+.vh-c-date{flex:1}
+.vh-c-n{width:44px;text-align:right}
+.vh-c-p{width:46px;text-align:right}
+.vh-c-chev{width:20px}
+
+/* ---- Verlauf: scrollbare Liste ---- */
+.vh-scroll{flex:1;min-height:0;position:relative}
+#vList{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.vh-fade{position:absolute;left:0;right:0;bottom:0;height:22px;background:linear-gradient(transparent,var(--bg));pointer-events:none}
+.vh-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 34px;color:var(--muted);font-size:14px;line-height:1.55}
+.vh-empty[hidden]{display:none}
+
+.vrow{width:100%;display:flex;align-items:center;padding:9px 18px;border:none;border-top:1px solid var(--line);background:none;color:inherit;text-align:left;font:inherit;cursor:pointer;animation:rowIn .34s ease both}
+.vrow:first-child{border-top:none}
+.vrow:active{background:var(--surf2)}
+.vrow-dot{width:8px;height:8px;border-radius:50%;flex:none;margin-right:9px}
+.vrow-main{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+.vrow-date{font-size:12.5px;font-weight:700;color:var(--ink)}
+.vrow-sub{font-size:10.5px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:4px}
+.vrow-sub svg{width:10px;height:10px}
+.vrow-v{width:44px;text-align:right;font-size:16px;font-weight:800}
+.vrow-p{width:46px;text-align:right;font-size:14px;font-weight:700;color:var(--muted)}
+.vrow-chev{width:20px;display:flex;justify-content:flex-end;color:var(--muted);opacity:.45}
+.vrow-chev svg{width:13px;height:13px}
+
+/* ---- Verlauf: feste Zeitraum-Leiste (mit gleitender Markierung) ---- */
+.vh-filter{flex:none;position:relative;display:flex;gap:6px;padding:9px 16px 10px;background:var(--surf);border-top:1px solid var(--line)}
+.vh-ink{position:absolute;left:0;border-radius:999px;background:var(--accent);opacity:0;z-index:0;pointer-events:none;transition:transform .32s cubic-bezier(.4,1.12,.5,1),width .32s cubic-bezier(.4,1.12,.5,1)}
+.vh-pill{flex:1;position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;border:none;background:none;color:var(--muted);font-size:12px;font-weight:700;padding:8px 10px;border-radius:999px;font-family:inherit;cursor:pointer;transition:color .25s ease}
+.vh-pill svg{width:13px;height:13px}
+.vh-pill-cal{flex:none}
+.vh-pill.active{color:#fff}
+
+/* ---- Zeitraum-Bottom-Sheet ---- */
+.sheet{position:fixed;inset:0;z-index:45}
+.sheet[hidden]{display:none}
+.sheet-scrim{position:absolute;inset:0;background:rgba(16,23,38,.42);animation:scrimIn .2s ease both}
+.sheet-panel{position:absolute;left:0;right:0;bottom:0;max-width:760px;margin-inline:auto;background:var(--surf);border-radius:24px 24px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -14px 40px rgba(16,23,38,.24);display:flex;flex-direction:column;gap:12px;animation:sheetSlide .34s cubic-bezier(.22,.61,.36,1) both}
+.rs-row{display:flex;align-items:center;gap:12px}
+.rs-row label{width:34px;font-size:13px;font-weight:700;color:var(--muted)}
+.rs-row input{flex:1;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:var(--surf2);color:var(--ink);font-size:15px;font-family:inherit}
+.rs-row input:focus{outline:none;border-color:var(--accent)}
+
+/* ---- Detail (Einzelmessung) ---- */
+.det-body{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 18px 16px;display:flex;flex-direction:column;gap:12px}
+.det-hero{display:flex;flex-direction:column;gap:9px;align-items:center;text-align:center;padding-top:4px}
+.det-pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;font-size:13px;font-weight:700;padding:6px 14px}
+.det-pill .d{width:7px;height:7px;border-radius:50%}
+.det-nums{display:flex;align-items:flex-end;gap:6px;justify-content:center}
+.det-col{display:flex;flex-direction:column;align-items:center;line-height:1}
+.det-num{font-size:64px;font-weight:800;letter-spacing:-.03em;line-height:.85}
+.det-num-l{font-size:10px;font-weight:800;letter-spacing:.08em;margin-top:7px}
+.det-slash{font-size:38px;color:var(--muted);opacity:.5;font-weight:600;padding-bottom:20px}
+.det-meta{font-size:12px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:9px}
+.det-meta .sep{width:3px;height:3px;border-radius:50%;background:var(--muted);opacity:.6}
+.det-meta .hb{display:inline-flex;align-items:center;gap:4px}
+.det-meta .hb svg{width:12px;height:12px;color:#e11d68}
+.det-meta .hb b{color:var(--ink);font-weight:700}
+
+.det-card{background:var(--surf);border:1px solid var(--line);border-radius:var(--cardr)}
+.det-date{padding:11px 13px;display:flex;align-items:center;gap:11px}
+.det-date-ic{width:34px;height:34px;border-radius:10px;background:var(--surf2);color:var(--accent);display:grid;place-items:center;flex:none}
+.det-date-ic svg{width:18px;height:18px}
+.det-date-main{flex:1;line-height:1.3;min-width:0}
+.det-date-1{font-size:13px;font-weight:700;color:var(--ink)}
+.det-date-2{font-size:11.5px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
+.det-date-2 svg{width:12px;height:12px}
+.det-date-2 .sep{width:3px;height:3px;border-radius:50%;background:var(--muted);opacity:.6}
+
+.det-scale{padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.det-scale-h{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.06em}
+.det-scale-row{display:flex;flex-direction:column;gap:6px}
+.det-scale-top{display:flex;align-items:baseline;justify-content:space-between}
+.det-scale-lab{font-size:10.5px;font-weight:700;color:var(--ink)}
+.det-scale-val{font-size:10.5px;font-weight:700}
+.det-scale-bar{position:relative;height:12px;border-radius:6px}
+.det-scale-mk{position:absolute;top:50%;transform:translate(-50%,-50%);width:15px;height:15px;border-radius:50%;border:2.5px solid var(--surf);box-shadow:0 1px 3px rgba(20,30,50,.3);animation:markerGlide .5s cubic-bezier(.22,.61,.36,1) both}
+
+.det-ctx{font-size:12.5px;line-height:1.5;color:var(--muted);padding:0 2px}
+.det-ctx b{color:var(--ink);font-weight:600}
+.det-note{padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.det-note svg{width:16px;height:16px;flex:none;margin-top:2px;color:var(--muted)}
+.det-note-txt{font-size:12.5px;line-height:1.5;color:var(--ink)}
+
+.det-actions{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 16px calc(20px + env(safe-area-inset-bottom));background:var(--surf);border-top:1px solid var(--line)}
+.det-back{display:inline-flex;align-items:center;gap:3px;color:var(--accent);font-size:15px;font-weight:800;background:none;border:none;cursor:pointer;padding:6px 8px 6px 2px;font-family:inherit}
+.det-back svg{width:22px;height:22px}
+.det-tools{display:flex;gap:10px}
+.det-tile{width:44px;height:44px;border-radius:13px;background:var(--surf2);border:none;display:grid;place-items:center;color:var(--accent);cursor:pointer}
+.det-tile svg{width:19px;height:19px}
+.det-tile-del{color:#c0261f}
+
+@keyframes rowIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideinright{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes markerGlide{from{opacity:0;transform:translate(-50%,-50%) scale(.5)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@media (prefers-reduced-motion:reduce){
+  #tab-table.screen.active,#tab-detail.screen.active{animation:none}
+  .vrow{animation:none!important}
+  .det-scale-mk,.sheet-panel,.sheet-scrim{animation:none}
+  .vh-ink{transition:none}
+}
