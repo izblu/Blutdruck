@@ -258,12 +258,24 @@ function getSorted(){
     return av<bv?-dir:av>bv?dir:0;
   });
 }
-function category(e){            // Farbstufe nach den nutzerdefinierten Schwellenwerten
+function category(e){            // Gesamt-Ampel: der schlechtere von Sys/Dia (medizinischer Standard)
   const t=settings.thr;
   if(e.sys>=t.sysR||e.dia>=t.diaR) return 'r';
   if(e.sys>=t.sysY||e.dia>=t.diaY) return 'y';
   return 'g';
 }
+/* Ampel für EINEN Wert (Sys bzw. Dia getrennt) – differenzierter als die Gesamt-Ampel.
+   Gibt 'g'/'y'/'r' zurück (bzw. 'n' = neutral, z. B. Puls ohne Schwellenwerte). */
+function catVal(v,y,r){ if(v==null||isNaN(v)) return 'n'; if(v>=r) return 'r'; if(v>=y) return 'y'; return 'g'; }
+function catValFor(key,v){ const t=settings.thr;
+  if(key==='sys') return catVal(v,t.sysY,t.sysR);
+  if(key==='dia') return catVal(v,t.diaY,t.diaR);
+  return 'n'; }
+/* Ampel-Kategorie → CSS-Token bzw. Text (überall geteilt: Dashboard, Verlauf, Detail, Diagramm). */
+const CAT_INK ={g:'var(--g-ink)', y:'var(--y-ink)', r:'var(--r-ink)', n:'var(--muted)'};
+const CAT_SOFT={g:'var(--g-soft)',y:'var(--y-soft)',r:'var(--r-soft)',n:'var(--surf2)'};
+const CAT_BAR ={g:'var(--g-bar)', y:'var(--y-bar)', r:'var(--r-bar)', n:'var(--muted)'};
+const CAT_LABEL={g:'Im Ziel', y:'Erhöht', r:'Zu hoch', n:'–'};
 
 /* ---------- Erfassen ---------- */
 const input=$('#bpInput');
@@ -472,6 +484,128 @@ function chartPoint(ev){
   clearTimeout(tip._t); tip._t=setTimeout(()=>tip.classList.remove('show'),2200);
 }
 $('#chart').addEventListener('pointerdown',chartPoint);
+
+/* ---------- Dashboard (Startseite) ----------
+   Kennzahlen nach dashboard-spezifikation.md: rollierende Fenster (7/30 Tage), Trend gegen die
+   Vorwoche, Ampel-Verteilung über 30 Tage. Rechnet aus den echten Einträgen (ts/sys/dia/pulse). */
+const ageDays=ts=>(Date.now()-new Date(ts).getTime())/86400000;          // Alter eines Eintrags in Tagen
+function meanKey(list,key){ return list.length?Math.round(list.reduce((s,e)=>s+e[key],0)/list.length):null; }
+function relTime(ts){
+  const diff=Date.now()-new Date(ts).getTime();
+  const min=Math.round(diff/60000);
+  if(min<1) return 'gerade eben';
+  if(min<60) return 'vor '+min+' Min.';
+  const hrs=Math.round(min/60);
+  if(hrs<24) return 'vor '+hrs+' Std.';
+  const days=Math.round(hrs/24);
+  return days===1?'gestern':'vor '+days+' Tagen';
+}
+function fmtLongDate(d){ return new Date(d).toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'}); }
+/* Prozente ganzzahlig runden, aber so, dass die Summe exakt 100 % bleibt (größte Reste zuerst). */
+function roundTo100(raw){
+  const fl=raw.map(v=>Math.floor(v));
+  const rem=100-fl.reduce((a,b)=>a+b,0);
+  const order=raw.map((v,i)=>[v-Math.floor(v),i]).sort((a,b)=>b[0]-a[0]);
+  for(let k=0;k<rem&&k<order.length;k++) fl[order[k][1]]++;
+  return fl;
+}
+/* Trend-Chip: neutraler Pfeil (rauf/runter/gleich) + Betrag. Bewusst KEINE Wertung gut/schlecht –
+   die Farbe trägt die Gesamt-Ampel (siehe Datenspezifikation). '—' wenn kein Vergleich möglich. */
+function trendChip(diff){
+  if(diff==null) return '<span class="dtrend">—</span>';
+  const a=Math.abs(diff);
+  const d=diff<0?'M12 5v13M18 12l-6 6-6-6':diff>0?'M12 19V6M6 12l6-6 6 6':'M5 12h14';
+  return '<span class="dtrend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="'+d+'"/></svg>'+a+'</span>';
+}
+function legRow(color,name,count,pct){
+  return '<div class="dleg-row"><span class="dleg-sq" style="background:'+color+'"></span>'
+    +'<span class="dleg-name">'+name+'</span>'
+    +'<span class="dleg-val"><b>'+count+'</b> · '+pct+'%</span></div>';
+}
+const IC_GAUGE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 18a8 8 0 1 1 15 0"/><path d="M12 18l3.6-4.6"/><circle cx="12" cy="18" r="1.5" fill="currentColor" stroke="none"/></svg>';
+const IC_ACT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h4.5l2-6 3.5 12 2.5-8 1.6 2H22"/></svg>';
+const IC_HEART='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.3l-1.4-1.3C5.4 14.2 2 11.1 2 7.6 2 5 4 3 6.5 3c1.7 0 3.3 1 4.1 2.4h.8C12.2 4 13.8 3 15.5 3 18 3 20 5 20 7.6c0 3.5-3.4 6.6-8.6 11.4L12 20.3z"/></svg>';
+const IC_DIST='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="2" width="8" height="20" rx="4"/><circle cx="12" cy="7.5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="16.5" r="1.6" fill="currentColor" stroke="none"/></svg>';
+
+function renderDashboard(){
+  const host=$('#dashboard'); if(!host) return;
+  const de=$('#dashDate'); if(de) de.textContent=fmtLongDate(new Date());
+  if(!entries.length){
+    host.innerHTML='<div class="dcard" style="padding:22px 18px;text-align:center">'
+      +'<div style="font-size:15px;font-weight:800;margin-bottom:6px">Noch keine Messung erfasst.</div>'
+      +'<div style="font-size:13px;color:var(--muted);line-height:1.5">Tippe unten auf das <b style="color:var(--accent)">+</b>, um deine erste Messung einzutragen.</div>'
+      +'</div>';
+    return;
+  }
+  const sorted=entries.slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const last=sorted[0];
+  const lc=category(last), sc=catValFor('sys',last.sys), dc=catValFor('dia',last.dia);
+
+  const cur=entries.filter(e=>ageDays(e.ts)<=7);                          // letzte 7 Tage
+  const prev=entries.filter(e=>{const a=ageDays(e.ts);return a>7&&a<=14;}); // die 7 Tage davor
+  const trend=(k)=>{ const a=meanKey(cur,k),b=meanKey(prev,k); return (a==null||b==null)?null:a-b; };
+  const sys7=meanKey(cur,'sys'), dia7=meanKey(cur,'dia'), pul7=meanKey(cur,'pulse');
+  const na='<span class="dtile-num" style="color:var(--muted)">–</span>';
+
+  const cur30=entries.filter(e=>ageDays(e.ts)<=30);                       // letzte 30 Tage
+  let g=0,y=0,r=0; cur30.forEach(e=>{const c=category(e); if(c==='r')r++;else if(c==='y')y++;else g++;});
+  const total=cur30.length;
+
+  let html='';
+  // Hero: Letzte Messung – Sys/Dia je in ihrer eigenen Ampelfarbe, dazu die Gesamt-Ampel als Pille
+  html+='<div class="dcard dcard-pad">'
+    +'<div class="dhero-top">'
+      +'<div class="dhead-l"><span class="dicon">'+IC_GAUGE+'</span>'
+        +'<div><div class="dhead-t1">Letzte Messung</div><div class="dhead-t2">'+relTime(last.ts)+'</div></div></div>'
+      +'<span class="dpill" style="background:'+CAT_SOFT[lc]+';color:'+CAT_INK[lc]+'"><span class="ddot" style="background:'+CAT_BAR[lc]+'"></span>'+CAT_LABEL[lc]+'</span>'
+    +'</div>'
+    +'<div class="dhero-nums">'
+      +'<div style="display:flex;align-items:flex-end;gap:3px">'
+        +'<div class="dbig"><span class="n" style="color:'+CAT_INK[sc]+'">'+last.sys+'</span><span class="l" style="color:'+CAT_INK[sc]+'">SYS</span></div>'
+        +'<span class="dslash">/</span>'
+        +'<div class="dbig"><span class="n" style="color:'+CAT_INK[dc]+'">'+last.dia+'</span><span class="l" style="color:'+CAT_INK[dc]+'">DIA</span></div>'
+      +'</div>'
+      +'<div class="dhero-side"><div class="u">mmHg</div><div class="p">Puls '+last.pulse+'</div></div>'
+    +'</div>'
+  +'</div>';
+
+  // Kacheln: Ø Blutdruck (7 Tage) mit Trend + Ø Puls (7 Tage) mit Trend
+  html+='<div class="dtiles">'
+    +'<div class="dtile wide">'
+      +'<div class="dhead-l"><span class="dicon">'+IC_ACT+'</span><div><div class="dhead-t1">Blutdruck</div><div class="dhead-t2">Ø 7 Tage · mmHg</div></div></div>'
+      +'<div class="dtile-avgs">'
+        +'<div class="dtile-col"><div class="dtile-cell">'+(sys7!=null?'<span class="dtile-num">'+sys7+'</span>':na)+'<span class="dtile-lbl">SYS</span></div>'+trendChip(trend('sys'))+'</div>'
+        +'<div class="dtile-div"></div>'
+        +'<div class="dtile-col"><div class="dtile-cell">'+(dia7!=null?'<span class="dtile-num">'+dia7+'</span>':na)+'<span class="dtile-lbl">DIA</span></div>'+trendChip(trend('dia'))+'</div>'
+      +'</div>'
+      +'<div class="dtile-foot">vs. Vorwoche</div>'
+    +'</div>'
+    +'<div class="dtile" style="text-align:center">'
+      +'<div class="dhead-l" style="justify-content:center"><span class="dicon pulse">'+IC_HEART+'</span><div class="dhead-t1">Puls</div></div>'
+      +'<div class="dtile-pulse"><div class="dtile-cell">'+(pul7!=null?'<span class="dtile-num">'+pul7+'</span>':na)+'<span class="dtile-lbl">BPM</span></div>'+trendChip(trend('pulse'))+'</div>'
+      +'<div class="dtile-foot">vs. Vorwoche</div>'
+    +'</div>'
+  +'</div>';
+
+  // Ampel-Verteilung (30 Tage) als Ring + Legende
+  html+='<div class="dcard dcard-pad">'
+    +'<div class="dhero-top" style="margin-bottom:12px">'
+      +'<div class="dhead-l"><span class="dicon">'+IC_DIST+'</span><div><div class="dhead-t1">Ampel-Verteilung</div><div class="dhead-t2">Letzte 30 Tage</div></div></div>'
+      +'<span style="font-size:10.5px;font-weight:700;color:var(--muted)">'+total+' '+(total===1?'Messung':'Messungen')+'</span>'
+    +'</div>';
+  if(!total){
+    html+='<div style="font-size:13px;color:var(--muted);padding:2px 2px 4px">Noch keine Daten in den letzten 30 Tagen.</div>';
+  }else{
+    const p=roundTo100([g/total*100,y/total*100,r/total*100]), pg=p[0],py=p[1],pr=p[2];
+    const seg='conic-gradient(var(--g-bar) 0 '+pg+'%,var(--y-bar) '+pg+'% '+(pg+py)+'%,var(--r-bar) '+(pg+py)+'% 100%)';
+    html+='<div class="ddist-body">'
+      +'<div class="ring" style="background:'+seg+'"><div class="ring-c"><span class="ring-pct" style="color:var(--g-ink)">'+pg+'%</span><span class="ring-lbl">im Ziel</span></div></div>'
+      +'<div class="dleg">'+legRow('var(--g-bar)','Im Ziel',g,pg)+legRow('var(--y-bar)','Erhöht',y,py)+legRow('var(--r-bar)','Zu hoch',r,pr)+'</div>'
+    +'</div>';
+  }
+  html+='</div>';
+  host.innerHTML=html;
+}
 
 /* ---------- Export / Import ---------- */
 function download(blob,name){
@@ -849,17 +983,20 @@ $$('#themeSeg .seg-btn').forEach(b=>b.addEventListener('click',()=>{ settings.th
 $('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); toast('Standardwerte wiederhergestellt','notice'); });
 
 /* ---------- App-Steuerung ---------- */
-let currentTab='capture';
+let currentTab='dashboard';
 function showTab(name){
   currentTab=name;
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
   $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  const hdr=$('header.app'); if(hdr) hdr.hidden=(name==='dashboard');   // Dashboard bringt eigenen Titel mit
+  if(name==='dashboard') renderDashboard();
   if(name==='chart') renderChart();
   if(name==='capture') setTimeout(()=>input.focus(),60);
 }
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
-function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); }
-function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); }
+$('#fabCapture').addEventListener('click',()=>showTab('capture'));                             // zentraler +-Knopf → Erfassen
+function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
+function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
 window.addEventListener('resize',()=>{ if(currentTab==='chart') renderChart(); });
 
 /* ---------- PWA: Manifest + Icon + Service Worker ---------- */
@@ -883,6 +1020,6 @@ async function init(){
   applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
   syncFilterInputs(); setActiveRangeChip(0);
   updatePreview(); renderTable(); updateReminder();
-  showTab('capture');
+  showTab('dashboard');
 }
 init();
