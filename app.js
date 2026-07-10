@@ -225,13 +225,9 @@ function addEntry(e){ entries.push(e); saveEntries(); markDirty(); }
 function updateEntry(id,patch){ const i=entries.findIndex(x=>x.id===id); if(i>=0){entries[i]={...entries[i],...patch};saveEntries();markDirty();} }
 function removeEntry(id){ entries=entries.filter(x=>x.id!==id); saveEntries(); markDirty(); }
 
-/* ---------- Parser ---------- */
+/* ---------- Plausibilitäts-Bereiche (nur zur Warnung, blockieren nicht) ---------- */
 const RANGES={sys:[70,260],dia:[40,160],pulse:[30,220]};
 const inRange=(v,[a,b])=>v!=null&&v>=a&&v<=b;
-function parseInput(str){
-  const nums=(String(str).match(/\d+/g)||[]).map(n=>parseInt(n,10));
-  return {sys:nums[0]??null,dia:nums[1]??null,pulse:nums[2]??null,count:nums.length};
-}
 
 /* ---------- Filter / Sortierung (geteilt von Tabelle + Diagramm) ---------- */
 let sortKey='ts', sortDir='desc';
@@ -277,49 +273,209 @@ const CAT_SOFT={g:'var(--g-soft)',y:'var(--y-soft)',r:'var(--r-soft)',n:'var(--s
 const CAT_BAR ={g:'var(--g-bar)', y:'var(--y-bar)', r:'var(--r-bar)', n:'var(--muted)'};
 const CAT_LABEL={g:'Im Ziel', y:'Erhöht', r:'Zu hoch', n:'–'};
 
-/* ---------- Erfassen ---------- */
-const input=$('#bpInput');
-function setChip(id,val,range){
-  const el=$('#'+id);
-  el.querySelector('.v').textContent=val!=null?val:'–';
-  el.classList.toggle('filled',val!=null);
-  el.classList.toggle('warn',val!=null&&!inRange(val,range));
+/* ---------- Erfassen (geführte Eingabe) ----------
+   Ein Feld nach dem anderen (Sys → Dia → Puls) über einen eigenen Ziffernblock: große Vorschauzahl,
+   Segment-Kacheln mit Ampel-Rückmeldung (catVal), Fortschrittspunkte, Datum/Uhrzeit- und Notiz-Sheet.
+   Speichert über addEntry (neu) bzw. updateEntry (Bearbeiten). Nachbau des Designs – Datenlogik unverändert. */
+const CAP_FIELDS=[{seg:'SYS',name:'Systolisch',unit:'mmHg',key:'sys'},
+                  {seg:'DIA',name:'Diastolisch',unit:'mmHg',key:'dia'},
+                  {seg:'PULS',name:'Puls',unit:'bpm',key:'pulse'}];
+/* Rahmenfarbe der „erledigten" Kachel (weiches Ampel-Linien-Pendant zu CAT_SOFT/-BAR). */
+const CAT_LINE={g:'color-mix(in srgb,var(--g-bar) 34%,var(--line))',
+                y:'color-mix(in srgb,var(--y-bar) 34%,var(--line))',
+                r:'color-mix(in srgb,var(--r-bar) 34%,var(--line))', n:'var(--line)'};
+const cap={f:['','',''],step:0,editing:false,editId:null,note:'',date:new Date(),returnTab:'dashboard',dtView:{y:0,m:0},saving:false};
+
+const WD_SHORT=['So','Mo','Di','Mi','Do','Fr','Sa'];
+const MO_FULL=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const sameDay=(a,b)=>a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+const pad2=n=>String(n).padStart(2,'0');
+/* Datum-Chip: „Heute, 09:41" / „Gestern, …" / „Mi, 24. Jun, …" */
+function capDateLabel(d){
+  const now=new Date(), y=new Date(now); y.setDate(y.getDate()-1);
+  let day;
+  if(sameDay(d,now)) day='Heute';
+  else if(sameDay(d,y)) day='Gestern';
+  else day=WD_SHORT[d.getDay()]+', '+d.getDate()+'. '+MO_FULL[d.getMonth()].slice(0,3);
+  return day+', '+pad2(d.getHours())+':'+pad2(d.getMinutes());
 }
-function updatePreview(){
-  const {sys,dia,pulse,count}=parseInput(input.value);
-  setChip('chipSys',sys,RANGES.sys);
-  setChip('chipDia',dia,RANGES.dia);
-  setChip('chipPulse',pulse,RANGES.pulse);
-  const ready=sys!=null&&dia!=null&&pulse!=null;
-  $('#saveBtn').disabled=!ready;
-  let warn='';
-  if(ready){
-    if(!inRange(sys,RANGES.sys)||!inRange(dia,RANGES.dia)||!inRange(pulse,RANGES.pulse))
-      warn='Ungewöhnlicher Wert – bitte prüfen.';
-    if(count>3) warn='Mehr als 3 Zahlen erkannt – es zählen die ersten drei.';
+function capSyncDateChip(){ $('#capDateLabel').textContent=capDateLabel(cap.date); }
+
+/* Öffnen. entry gesetzt → Bearbeiten-Modus; sonst neue Messung. returnTab = Ziel beim Schließen/Speichern. */
+function startCapture(entry,returnTab){
+  cap.returnTab=returnTab||'dashboard'; cap.saving=false; cap.step=0;
+  if(entry){
+    cap.editing=true; cap.editId=entry.id;
+    cap.f=[String(entry.sys),String(entry.dia),String(entry.pulse)];
+    cap.note=entry.note||''; cap.date=new Date(entry.ts);
+  }else{
+    cap.editing=false; cap.editId=null;
+    cap.f=['','','']; cap.note=''; cap.date=new Date();
   }
-  $('#captureWarn').textContent=warn;
+  $('#capTitle').textContent=cap.editing?'Messung bearbeiten':'Neue Messung';
+  $('#capSave').hidden=true; $('#capDtSheet').hidden=true; $('#capNoteSheet').hidden=true;
+  capSyncDateChip(); capUpdate();
+  showTab('capture');
 }
-function saveCapture(){
-  const {sys,dia,pulse}=parseInput(input.value);
-  if(sys==null||dia==null||pulse==null) return;
-  addEntry({id:uid(),ts:new Date().toISOString(),sys,dia,pulse,note:$('#noteInput').value.trim()});
-  input.value=''; $('#noteInput').value=''; setNote(false); updatePreview();
-  renderAll();
-  toast('Gespeichert');
-  updateReminder();
-  input.focus();
+
+/* Alles Sichtbare an den Zustand angleichen (Zahl, Einheit, Fortschritt, Kacheln, Knöpfe, Hinweis). */
+function capUpdate(){
+  const i=cap.step, raw=cap.f[i], cfg=CAP_FIELDS[i];
+  $('#capBig').textContent=raw;
+  $('#capUnit').textContent=cfg.name.toUpperCase()+' · '+cfg.unit;
+  $$('#capProgress span').forEach(s=>{ const k=+s.dataset.i;
+    s.classList.toggle('active',k===i);
+    s.classList.toggle('filled',k!==i&&cap.f[k].length>0); });
+  $$('#tab-capture .cap-tile').forEach(t=>{
+    const k=+t.dataset.i, r=cap.f[k], has=r.length>0, active=k===i, done=has&&!active&&k<2;
+    const cat=done?catValFor(CAP_FIELDS[k].key,parseInt(r,10)):null;
+    t.classList.toggle('active',active); t.classList.toggle('empty',!has);
+    const box=t.querySelector('.cap-tile-box'), seg=t.querySelector('.cap-tile-seg'),
+          val=t.querySelector('.cap-tile-val'), pill=t.querySelector('.cap-tile-pill');
+    val.textContent=has?r:'––';
+    if(done){
+      box.style.background=CAT_SOFT[cat]; box.style.borderColor=CAT_LINE[cat];
+      seg.style.color=CAT_INK[cat]; val.style.color=CAT_INK[cat];
+      pill.innerHTML='<span class="cap-pill" style="background:'+CAT_SOFT[cat]+';color:'+CAT_INK[cat]+'">'
+        +'<span class="d" style="background:'+CAT_BAR[cat]+'"></span>'+CAT_LABEL[cat]+'</span>';
+    }else{
+      box.style.background=''; box.style.borderColor=''; seg.style.color=''; val.style.color=''; pill.innerHTML='';
+    }
+  });
+  $('#capInk').style.left='calc('+i+' * (100% - 16px) / 3 + '+(8*i)+'px)';
+  const allFilled=cap.f.every(v=>v.length>0), last=i>=2, next=$('#capNext');
+  next.textContent=last?'Speichern':'Weiter';
+  next.disabled=last?!allFilled:raw.length===0;
+  let hint='';
+  for(let k=0;k<3;k++){ const v=cap.f[k]; if(v.length&&!inRange(parseInt(v,10),RANGES[CAP_FIELDS[k].key])){ hint='Ungewöhnlicher Wert – bitte prüfen.'; break; } }
+  $('#capHint').textContent=hint;
+  $('#capNoteBtn').textContent=cap.note.trim()?'✓ Notiz':'+ Notiz';
 }
-function setNote(show){
-  const w=$('#noteWrap');
-  const open = show!==undefined ? show : w.hasAttribute('hidden');
-  if(open){ w.removeAttribute('hidden'); $('#noteToggle').textContent='– Notiz ausblenden'; $('#noteInput').focus(); }
-  else { w.setAttribute('hidden',''); $('#noteToggle').textContent='+ Notiz hinzufügen'; }
+function capBump(){ const b=$('#capBig'); b.classList.remove('bump'); void b.offsetWidth; b.classList.add('bump'); }
+
+function capPressDigit(d){
+  const i=cap.step; if(cap.f[i].length>=3) return;
+  cap.f[i]+=d;
+  if(cap.f[i].length>=3&&i<2) cap.step=i+1;   // nach 3 Ziffern automatisch weiter
+  capUpdate(); capBump();
 }
-input.addEventListener('input',updatePreview);
-input.addEventListener('keydown',e=>{ if(e.key==='Enter'){e.preventDefault(); if(!$('#saveBtn').disabled) saveCapture();} });
-$('#saveBtn').addEventListener('click',saveCapture);
-$('#noteToggle').addEventListener('click',()=>setNote());
+function capPressBack(){
+  const i=cap.step;
+  if(cap.f[i].length){ cap.f[i]=cap.f[i].slice(0,-1); capUpdate(); return; }
+  if(i>0){ cap.step=i-1; capUpdate(); }
+}
+function capGoStep(i){ if(i!==cap.step){ cap.step=i; capUpdate(); } }
+function capNext(){
+  if(cap.step<2){ if(cap.f[cap.step].length===0) return; cap.step++; capUpdate(); }
+  else capSave();
+}
+function capClose(){ if(!cap.saving) showTab(cap.returnTab); }
+function capSave(){
+  if(cap.saving) return;
+  const sys=parseInt(cap.f[0],10), dia=parseInt(cap.f[1],10), pulse=parseInt(cap.f[2],10);
+  if(!Number.isFinite(sys)||!Number.isFinite(dia)||!Number.isFinite(pulse)) return;
+  cap.saving=true;
+  const note=cap.note.trim();
+  if(cap.editing&&cap.editId) updateEntry(cap.editId,{ts:cap.date.toISOString(),sys,dia,pulse,note});
+  else addEntry({id:uid(),ts:cap.date.toISOString(),sys,dia,pulse,note});
+  $('#capSave').hidden=false;                 // Häkchen-Overlay, dann Zielscreen
+  const back=cap.returnTab;
+  setTimeout(()=>{ $('#capSave').hidden=true; cap.saving=false; renderAll(); updateReminder(); showTab(back); },780);
+}
+
+/* ----- Datum & Uhrzeit (Bottom-Sheet) ----- */
+function capOpenDt(){ cap.dtView={y:cap.date.getFullYear(),m:cap.date.getMonth()}; capRenderDt(); $('#capDtSheet').hidden=false; }
+function capCloseDt(){ $('#capDtSheet').hidden=true; }
+function capSetDtQuick(which){
+  const c=cap.date; let d;
+  if(which==='jetzt') d=new Date();
+  else if(which==='heute'){ d=new Date(); d.setHours(c.getHours(),c.getMinutes(),0,0); }
+  else { d=new Date(); d.setDate(d.getDate()-1); d.setHours(c.getHours(),c.getMinutes(),0,0); }
+  cap.date=d; cap.dtView={y:d.getFullYear(),m:d.getMonth()}; capRenderDt(); capSyncDateChip();
+}
+function capDtPrevMonth(){ let {y,m}=cap.dtView; m--; if(m<0){m=11;y--;} cap.dtView={y,m}; capRenderDt(); }
+function capDtNextMonth(){ const n=new Date(); let {y,m}=cap.dtView;
+  if(y>n.getFullYear()||(y===n.getFullYear()&&m>=n.getMonth())) return;     // nicht in die Zukunft
+  m++; if(m>11){m=0;y++;} cap.dtView={y,m}; capRenderDt(); }
+function capPickDay(day){ const c=cap.date; cap.date=new Date(cap.dtView.y,cap.dtView.m,day,c.getHours(),c.getMinutes(),0,0); capRenderDt(); capSyncDateChip(); }
+function capStepHour(delta){ const d=new Date(cap.date); d.setHours((cap.date.getHours()+delta+24)%24); cap.date=d; capRenderDt(); capSyncDateChip(); }
+function capStepMin(delta){ const d=new Date(cap.date); d.setMinutes((cap.date.getMinutes()+delta+60)%60); cap.date=d; capRenderDt(); capSyncDateChip(); }
+function capRenderDt(){
+  const e=cap.date, now=new Date(), yest=new Date(now); yest.setDate(yest.getDate()-1);
+  const vy=cap.dtView.y, vm=cap.dtView.m;
+  const isNow=sameDay(e,now)&&Math.abs(e-now)<60000;
+  const q=[['jetzt','Jetzt',isNow],['heute','Heute',sameDay(e,now)&&!isNow],['gestern','Gestern',sameDay(e,yest)]];
+  const xIcon='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  let html='<div class="cap-sheet-grab"></div>'
+    +'<div class="cap-sheet-head"><div class="cap-sheet-title">Datum &amp; Uhrzeit</div>'
+    +'<button class="cap-x" data-act="close" type="button" aria-label="Schließen">'+xIcon+'</button></div>'
+    +'<div class="cap-dt-quick">'+q.map(([k,l,on])=>'<button type="button" data-act="quick" data-q="'+k+'" class="'+(on?'on':'')+'">'+l+'</button>').join('')+'</div>';
+  const canNext=!(vy>now.getFullYear()||(vy===now.getFullYear()&&vm>=now.getMonth()));
+  html+='<div class="cap-cal"><div class="cap-cal-head">'
+    +'<button class="cap-cal-nav" data-act="prevm" type="button" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>'
+    +'<div class="cap-cal-title">'+MO_FULL[vm]+' '+vy+'</div>'
+    +'<button class="cap-cal-nav" data-act="nextm" type="button" aria-label="Nächster Monat"'+(canNext?'':' disabled')+'><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>'
+    +'</div><div class="cap-cal-wd">'+['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>'<span>'+w+'</span>').join('')+'</div>';
+  const first=new Date(vy,vm,1), startW=(first.getDay()+6)%7, dim=new Date(vy,vm+1,0).getDate();
+  const todayMid=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  let cells='';
+  for(let b=0;b<startW;b++) cells+='<span></span>';
+  for(let day=1;day<=dim;day++){
+    const cd=new Date(vy,vm,day), future=cd>todayMid, sel=sameDay(cd,e), today=sameDay(cd,now);
+    const cls=[sel?'sel':'',today?'today':'',future?'future':''].filter(Boolean).join(' ');
+    cells+=future ? '<button type="button" class="'+cls+'" disabled>'+day+'</button>'
+                  : '<button type="button" class="'+cls+'" data-act="day" data-day="'+day+'">'+day+'</button>';
+  }
+  html+='<div class="cap-cal-grid">'+cells+'</div></div>';
+  const up='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>';
+  const dn='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  const step=(val,lbl,ua,da)=>'<div class="cap-step"><button type="button" data-act="'+ua+'">'+up+'</button>'
+    +'<div class="cap-step-val tnum">'+val+'</div><button type="button" data-act="'+da+'">'+dn+'</button>'
+    +'<div class="cap-step-lbl">'+lbl+'</div></div>';
+  html+='<div class="cap-time">'+step(pad2(e.getHours()),'STD','hup','hdn')
+    +'<div class="cap-time-colon">:</div>'+step(pad2(e.getMinutes()),'MIN','mup','mdn')+'</div>'
+    +'<button class="cap-sheet-apply" data-act="close" type="button">Übernehmen</button>';
+  $('#capDtPanel').innerHTML=html;
+}
+
+/* ----- Notiz (Bottom-Sheet) ----- */
+function capOpenNote(){ $('#capNoteTa').value=cap.note; $('#capNoteSheet').hidden=false; setTimeout(()=>$('#capNoteTa').focus(),50); }
+function capCloseNote(){ $('#capNoteSheet').hidden=true; }
+function capApplyNote(){ cap.note=$('#capNoteTa').value; capCloseNote(); capUpdate(); }
+
+/* ----- Verkabelung ----- */
+$('#capKeys').addEventListener('click',ev=>{ const b=ev.target.closest('.cap-key'); if(!b) return;
+  const k=b.dataset.k; if(k==='back') capPressBack(); else capPressDigit(k); });
+$('#capNext').addEventListener('click',capNext);
+$('#capClose').addEventListener('click',capClose);
+$('#capDateChip').addEventListener('click',capOpenDt);
+$('#capNoteBtn').addEventListener('click',capOpenNote);
+$$('#capProgress span').forEach(s=>s.addEventListener('click',()=>capGoStep(+s.dataset.i)));
+$$('#tab-capture .cap-tile').forEach(t=>t.addEventListener('click',()=>capGoStep(+t.dataset.i)));
+$('#capDtPanel').addEventListener('click',ev=>{ const b=ev.target.closest('[data-act]'); if(!b||b.disabled) return;
+  const a=b.dataset.act;
+  if(a==='close') capCloseDt();
+  else if(a==='quick') capSetDtQuick(b.dataset.q);
+  else if(a==='prevm') capDtPrevMonth();
+  else if(a==='nextm') capDtNextMonth();
+  else if(a==='day') capPickDay(+b.dataset.day);
+  else if(a==='hup') capStepHour(1); else if(a==='hdn') capStepHour(-1);
+  else if(a==='mup') capStepMin(1); else if(a==='mdn') capStepMin(-1);
+});
+$('#capDtScrim').addEventListener('click',capCloseDt);
+$('#capNoteScrim').addEventListener('click',capCloseNote);
+$('#capNoteX').addEventListener('click',capCloseNote);
+$('#capNoteApply').addEventListener('click',capApplyNote);
+/* Physische Tastatur (Komfort am Desktop + echte Tastatur): nur im Erfassen-Screen aktiv. */
+document.addEventListener('keydown',ev=>{
+  if(currentTab!=='capture') return;
+  const dtOpen=!$('#capDtSheet').hidden, noteOpen=!$('#capNoteSheet').hidden;
+  if(dtOpen||noteOpen){ if(ev.key==='Escape'){ capCloseDt(); capCloseNote(); } return; }
+  if(ev.key>='0'&&ev.key<='9'){ capPressDigit(ev.key); ev.preventDefault(); }
+  else if(ev.key==='Backspace'){ capPressBack(); ev.preventDefault(); }
+  else if(ev.key==='Enter'){ if(!$('#capNext').disabled) capNext(); ev.preventDefault(); }
+  else if(ev.key==='Escape'){ capClose(); }
+});
 
 /* ---------- Tabelle ---------- */
 function updateSortIndicators(){
@@ -988,13 +1144,13 @@ function showTab(name){
   currentTab=name;
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
   $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
-  const hdr=$('header.app'); if(hdr) hdr.hidden=(name==='dashboard');   // Dashboard bringt eigenen Titel mit
+  const hdr=$('header.app'); if(hdr) hdr.hidden=(name==='dashboard'||name==='capture');  // Dashboard/Erfassen bringen eigenen Kopf mit
+  const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture')?'none':'';     // Erfassen ist Vollbild (eigenes X + Speichern)
   if(name==='dashboard') renderDashboard();
   if(name==='chart') renderChart();
-  if(name==='capture') setTimeout(()=>input.focus(),60);
 }
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
-$('#fabCapture').addEventListener('click',()=>showTab('capture'));                             // zentraler +-Knopf → Erfassen
+$('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
 function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
 function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); }
 window.addEventListener('resize',()=>{ if(currentTab==='chart') renderChart(); });
@@ -1019,7 +1175,7 @@ async function init(){
   await initStorage();                 // Daten aus IndexedDB laden / migrieren
   applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
   syncFilterInputs(); setActiveRangeChip(0);
-  updatePreview(); renderTable(); updateReminder();
+  renderTable(); updateReminder();
   showTab('dashboard');
 }
 init();
