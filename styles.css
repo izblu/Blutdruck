@@ -358,7 +358,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 .dbig{display:flex;flex-direction:column;align-items:center;line-height:1}
 .dbig .n{font-family:var(--numfont);font-size:46px;font-weight:800;letter-spacing:-.03em;line-height:.88;font-variant-numeric:tabular-nums}
 .dbig .l{font-size:9px;font-weight:800;letter-spacing:.07em;margin-top:5px}
-.dslash{font-size:30px;color:#c2cad6;font-weight:600;padding-bottom:15px}
+.dslash{font-size:30px;color:var(--muted);opacity:.5;font-weight:600;padding-bottom:15px}
 .dhero-side{margin-left:auto;text-align:right;padding-bottom:3px}
 .dhero-side .u{font-size:11px;color:var(--muted);font-weight:600}
 .dhero-side .p{font-size:15px;font-weight:700;color:var(--ink);margin-top:3px;font-variant-numeric:tabular-nums}
@@ -606,7 +606,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 .det-meta{font-size:12px;font-weight:600;color:var(--muted);display:inline-flex;align-items:center;gap:9px}
 .det-meta .sep{width:3px;height:3px;border-radius:50%;background:var(--muted);opacity:.6}
 .det-meta .hb{display:inline-flex;align-items:center;gap:4px}
-.det-meta .hb svg{width:12px;height:12px;color:#e11d68}
+.det-meta .hb svg{width:12px;height:12px;color:var(--pulse-bar)}
 .det-meta .hb b{color:var(--ink);font-weight:700}
 
 .det-card{background:var(--surf);border:1px solid var(--line);border-radius:var(--cardr)}
@@ -640,7 +640,7 @@ input[type=checkbox].sw:checked::after{left:21px}
 .det-tools{display:flex;gap:10px}
 .det-tile{width:44px;height:44px;border-radius:13px;background:var(--surf2);border:none;display:grid;place-items:center;color:var(--accent);cursor:pointer}
 .det-tile svg{width:19px;height:19px}
-.det-tile-del{color:#c0261f}
+.det-tile-del{color:var(--r-ink)}
 
 /* ===================== Diagramm (Stufe 5, Variante A) =====================
    Eigener Vollbild-Screen wie der Verlauf: eigener Kopf „Diagramm", scrollbarer Rumpf
