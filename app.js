@@ -1256,27 +1256,31 @@ function applyTheme(){
 }
 /* Im Auto-Modus dem Systemwechsel folgen: die Struktur-/Ampelfarben schaltet CSS selbst um,
    nur der modus-abhängige Akzentwert muss nachgezogen werden. */
-if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(settings.theme==='auto') applyAccent(); });
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ if(settings.theme==='auto'){ applyAccent(); applyAccentSwatches(); } });
 function applyThrUI(){
   const t=settings.thr;
   $('#thrSysY').value=t.sysY; $('#thrDiaY').value=t.diaY;
   $('#thrSysR').value=t.sysR; $('#thrDiaR').value=t.diaR;
 }
-function updateThrEnabled(){              // Schwellenwerte nur relevant, wenn Ampel oder Diagramm-Linien aktiv
-  const on=settings.colorDots||settings.guideLines;
-  $('#thrBlock').classList.toggle('is-disabled',!on);
-  ['thrSysY','thrDiaY','thrSysR','thrDiaR','thrReset'].forEach(id=>{ $('#'+id).disabled=!on; });
+/* Akzent-Auswahl: Swatch-Farben je Hell/Dunkel setzen (der aktive Ring nutzt currentColor)
+   und den gewählten Punkt markieren. */
+function applyAccentSwatches(){
+  const dark=resolveDark();
+  $$('#accentPick .acc-sw').forEach(b=>{
+    const set=ACCENT_SETS[b.dataset.accent]||ACCENT_SETS.ozean;
+    const col=set[dark?'dark':'light'];
+    b.style.background=col; b.style.color=col;
+    b.classList.toggle('active',(settings.accent||'ozean')===b.dataset.accent);
+  });
 }
-function applyThemeSeg(){ $$('#themeSeg .seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.theme===settings.theme)); }
+function applyThemeSeg(){ $$('#themeSeg [data-theme]').forEach(b=>b.classList.toggle('active',b.dataset.theme===settings.theme)); }
 function applySettingsUI(){
-  $('#setColor').checked=settings.colorDots;
-  $('#setGuide').checked=settings.guideLines;
   $('#setReminderDays').value=settings.reminderDays;
   applyThemeSeg();
   applyThrUI();
-  updateThrEnabled();
+  applyAccentSwatches();
 }
-$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); updateStorageStatus(); refreshLinkFileUI(); $('#menuDlg').showModal(); });
+$('#menuBtn').addEventListener('click',()=>{ applySettingsUI(); updateStorageStatus(); refreshLinkFileUI(); const cn=$('#csvNote'); if(cn) cn.textContent=entries.length+(entries.length===1?' Messung':' Messungen')+' · für Excel/Tabellen'; $('#menuDlg').showModal(); });
 $('#menuClose').addEventListener('click',()=>$('#menuDlg').close());
 // Schließen nur, wenn der Klick die Backdrop-Fläche (das Dialog-Element selbst) trifft –
 // robust gegen das Neu-Zentrieren beim Auf-/Zuklappen der Abschnitte.
@@ -1296,20 +1300,23 @@ $('#confirmDlg').addEventListener('click',e=>{ if(e.target===e.currentTarget) e.
 // Toast nicht im gerade geschlossenen Fenster „einsperren": zurück in den Body holen, damit eine
 // noch sichtbare Meldung nahtlos unten stehen bleibt (z. B. „Backup geteilt" vor dem Schließen).
 $$('dialog').forEach(d=>d.addEventListener('close',()=>{ const w=$('#toast'); if(w.parentElement===d) document.body.appendChild(w); }));
-$('#setColor').addEventListener('change',e=>{ settings.colorDots=e.target.checked; saveSettings(); updateThrEnabled(); renderTable(); });
-$('#setGuide').addEventListener('change',e=>{ settings.guideLines=e.target.checked; saveSettings(); updateThrEnabled(); if(currentTab==='chart') renderChart(); });
+// Die Schalter „Werte-Ampel" (colorDots) und „Schwellenwert-Linien" (guideLines) entfielen in Stufe 6:
+// Verlauf färbt immer pro Wert, das Diagramm nutzt immer Ampelpunkte + Ø-Linie. Die Schlüssel bleiben
+// in settings/Backup (Rückwärtskompatibilität), nur ohne Bedienelement.
 $('#setReminderDays').addEventListener('input',e=>{
   let v=parseInt(e.target.value,10); if(!Number.isFinite(v)||v<0) v=0;
   settings.reminderDays=v; saveSettings(); updateReminder();
 });
-$$('#themeSeg .seg-btn').forEach(b=>b.addEventListener('click',()=>{ settings.theme=b.dataset.theme; saveSettings(); applyTheme(); applyThemeSeg(); if(currentTab==='chart') renderChart(); }));
+$$('#themeSeg [data-theme]').forEach(b=>b.addEventListener('click',()=>{ settings.theme=b.dataset.theme; saveSettings(); applyTheme(); applyThemeSeg(); applyAccentSwatches(); if(currentTab==='chart') renderChart(); }));
+// Akzentfarbe wählen: --accent app-weit setzen (applyAccent), Swatches auffrischen, Diagramm (Ø-Linie) nachziehen
+$$('#accentPick .acc-sw').forEach(b=>b.addEventListener('click',()=>{ settings.accent=b.dataset.accent; saveSettings(); applyAccent(); applyAccentSwatches(); if(currentTab==='chart') renderChart(); }));
 [['thrSysY','sysY'],['thrDiaY','diaY'],['thrSysR','sysR'],['thrDiaR','diaR']].forEach(([id,key])=>{
   $('#'+id).addEventListener('input',e=>{
     const v=parseInt(e.target.value,10);
-    if(Number.isFinite(v)){ settings.thr[key]=v; saveSettings(); renderTable(); } // Echtzeit-Aktualisierung der Tabelle
+    if(Number.isFinite(v)){ settings.thr[key]=v; saveSettings(); renderTable(); if(currentTab==='chart') renderChart(); } // Echtzeit: Tabelle (und Diagramm, falls offen)
   });
 });
-$('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); toast('Standardwerte wiederhergestellt','notice'); });
+$('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); if(currentTab==='chart') renderChart(); toast('Standardwerte wiederhergestellt','notice'); });
 
 /* ---------- App-Steuerung ---------- */
 let currentTab='dashboard';

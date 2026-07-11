@@ -166,9 +166,11 @@ dialog{
    Bewusst dialog[open], damit geschlossene Fenster weiter ausgeblendet bleiben (display:none). */
 dialog[open]{display:flex;flex-direction:column}
 /* Menü & Anleitung heben sich farblich von der App ab und lassen ringsum Rand zum Raustippen */
-#menuDlg,#helpDlg{background:var(--menu-bg);box-shadow:0 16px 50px rgba(0,0,0,.5);border:1px solid var(--border);margin-top:auto;margin-bottom:calc(12px + env(safe-area-inset-bottom))}
+#menuDlg,#helpDlg{background:var(--bg);box-shadow:0 -8px 44px rgba(12,18,30,.4);border:1px solid var(--line);border-radius:26px;margin-top:auto;margin-bottom:calc(12px + env(safe-area-inset-bottom))}
 dialog::backdrop{background:rgba(15,23,42,.55)}
+.dlg-grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:9px auto 2px;flex:0 0 auto}
 .dlg-head{padding:16px 18px 0;font-size:1.1rem;font-weight:700;flex:0 0 auto}
+#menuDlg .dlg-head{padding:2px 18px 4px;font-weight:800}
 .dlg-body{padding:14px 18px;flex:1 1 auto;min-height:0;overflow:auto}
 .field{margin-bottom:12px}
 .field label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px}
@@ -214,30 +216,30 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .reason{display:block;font-size:11px;color:var(--muted);margin:-4px 0 8px 36px}
 /* Auto-Backup-Datei: Name + Aktionen */
 .lf-actions{display:flex;gap:8px}
-.lf-btn{flex:1;white-space:nowrap;text-align:center;padding:8px 6px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.8rem}
+.lf-btn{flex:1;white-space:nowrap;text-align:center;padding:9px 6px;border:1px solid var(--line);border-radius:10px;background:var(--surf);color:var(--ink);font-size:12px;font-weight:700}
 .lf-btn:disabled{opacity:.6}
 /* Backup-Gruppen als abgesetzte Karten (Automatisch / Manuell) */
-.grp-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin-bottom:9px}
-.grp-head{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700;margin:0 0 6px}
+.grp-card{background:var(--surf2);border:none;border-radius:14px;padding:11px 12px;margin-bottom:9px}
+.grp-head{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin:0 0 8px}
 #linkFileName{margin:0 0 7px}
 .is-linked{color:var(--cat-g);font-weight:600}
 .is-unlinked{color:var(--danger);font-weight:600}
 /* „Backup teilen": breiter Knopf unter den Gruppen-Karten */
-.share-btn{display:flex;width:100%;align-items:center;justify-content:center;gap:8px;padding:10px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.92rem}
-.share-btn .ic{width:18px;height:18px;color:var(--muted)}
+.share-btn{display:flex;width:100%;align-items:center;justify-content:center;gap:8px;padding:12px;border:none;border-radius:14px;background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent);font-size:13px;font-weight:800}
+.share-btn .ic{width:17px;height:17px;color:var(--accent)}
 .share-btn:disabled{opacity:.5}
-/* Aufklappbare Abschnitte */
-.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 8px;font-weight:600}
-.acc-head .lbl{display:flex;align-items:center;gap:12px}
-.acc-head .ic{width:22px;height:22px;flex:0 0 auto;color:var(--primary)}
-.acc-head .chev{width:20px;height:20px;flex:0 0 auto;color:var(--muted);transition:transform .2s}
+/* Aufklappbare Abschnitte (Menü-Akkordeon) */
+.acc-head{display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;background:none;border:none;color:var(--ink);padding:12px;font-weight:800;font-size:14.5px}
+.acc-head .lbl{display:flex;align-items:center;gap:11px}
+.acc-head .ic{width:31px;height:31px;flex:0 0 auto;box-sizing:border-box;padding:6px;border-radius:9px;color:var(--muted);background:transparent;transition:background-color .3s,color .3s}
+.acc-head .chev{width:20px;height:20px;flex:0 0 auto;color:var(--muted);transition:transform .25s}
 .acc-head[aria-expanded="true"] .chev{transform:rotate(180deg)}
-.acc-body{display:none;padding-left:4px}
+.acc-body{display:none;padding:0 12px 13px}
 .acc-body.open{display:block}
 /* Aufgeklappter Abschnitt hebt sich als Karte ab (statt Trennlinien) */
-.acc-sec.open{background:var(--surface);border-radius:12px;box-shadow:var(--panel-shadow);margin:4px 0}
-.acc-sec.open .acc-head{padding:14px}
-.acc-sec.open .acc-body{padding:2px 14px 12px}
+.acc-sec{border-radius:16px;transition:background-color .3s,box-shadow .3s}
+.acc-sec.open{background:var(--surf);box-shadow:0 8px 20px -10px rgba(20,30,50,.28);margin:3px 0}
+.acc-sec.open .acc-head .ic{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
 /* Anleitung-Pop-up */
 .help-p{margin:0 0 12px;font-size:.95rem;line-height:1.5}
 .help-p code{background:var(--surface-2);padding:1px 6px;border-radius:6px;font-family:ui-monospace,monospace}
@@ -249,14 +251,48 @@ input[type=checkbox].sw:checked{background:var(--primary)}
 input[type=checkbox].sw::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
 input[type=checkbox].sw:checked::after{left:21px}
 
-/* Schwellenwerte im Menü */
-.thr{padding:10px 4px}
-.thr.is-disabled{opacity:.5;pointer-events:none}
-.thr-head{font-size:.82rem;color:var(--muted);margin-bottom:8px}
-.thr-grid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:8px;align-items:center}
-.thr-col{font-size:.75rem;color:var(--muted);text-align:center}
-.thr-row{display:flex;align-items:center;gap:6px;font-size:.92rem}
-.thr-grid input{width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);text-align:center}
+/* Menü-Unterblöcke (Anzeige: Zielbereich, Design) */
+.mblk{background:var(--surf2);border-radius:14px;padding:11px 12px;margin-bottom:9px}
+.mblk-t{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:800;margin-bottom:9px}
+
+/* Zielbereich: Schwellenwerte editierbar als Ampel-Chips */
+.thr-grid2{display:grid;grid-template-columns:1fr 62px 62px;gap:8px;align-items:center}
+.thr-hcol{font-size:9.5px;font-weight:800;text-align:center;letter-spacing:.02em}
+.thr-hy{color:var(--y-ink)}
+.thr-hr{color:var(--r-ink)}
+.thr-name{font-size:12.5px;font-weight:700;color:var(--ink)}
+.thr-chip{width:100%;text-align:center;padding:7px 4px;border-radius:9px;font:inherit;font-size:13px;font-weight:800;font-variant-numeric:tabular-nums;border:1px solid transparent;-moz-appearance:textfield}
+.thr-chip::-webkit-outer-spin-button,.thr-chip::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.thr-chip-y{background:var(--y-soft);color:var(--y-ink);border-color:color-mix(in srgb,var(--y-bar) 30%,transparent)}
+.thr-chip-r{background:var(--r-soft);color:var(--r-ink);border-color:color-mix(in srgb,var(--r-bar) 30%,transparent)}
+.thr-chip:focus{outline:none;border-color:var(--accent)}
+.thr-reset{padding:9px 0 0;font-size:12.5px}
+
+/* Design: Hell/Dunkel/Auto-Pille */
+.theme-pill{display:flex;gap:2px;padding:3px;border-radius:999px;background:color-mix(in srgb,var(--ink) 7%,transparent);margin-bottom:11px}
+.tp-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 4px;border:none;border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background-color .2s,color .2s}
+.tp-btn svg{width:15px;height:15px;flex:0 0 auto}
+.tp-btn.active{background:var(--surf);color:var(--accent);box-shadow:0 1px 3px rgba(20,30,50,.16)}
+
+/* Akzentfarben-Auswahl (Swatch-Farbe je Hell/Dunkel per JS gesetzt → Ring nutzt currentColor) */
+.acc-swatches{display:flex;gap:13px;justify-content:center;padding-top:1px}
+.acc-sw{width:32px;height:32px;padding:0;border:none;border-radius:50%;cursor:pointer;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(128,128,128,.3);transition:box-shadow .18s}
+.acc-sw.active{box-shadow:0 0 0 2px var(--surf2),0 0 0 4px currentColor}
+.acc-sw .ck{width:15px;height:15px;opacity:0;transition:opacity .15s}
+.acc-sw.active .ck{opacity:1}
+
+/* Daten: Export-Zeile + Lösch-Knopf */
+.m-row{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--ink);cursor:pointer}
+.m-row-ic{color:var(--accent);display:grid;place-items:center;flex:0 0 auto}
+.m-row-ic svg{width:19px;height:19px}
+.m-row-t{flex:1;font-size:12.5px;font-weight:700}
+.m-row-chev{width:17px;height:17px;color:var(--muted);flex:0 0 auto}
+.m-note{margin:8px 0 0;font-size:10.5px;color:var(--muted);font-weight:600}
+.m-danger{display:flex;align-items:center;gap:9px;width:100%;padding:11px 12px;border:none;border-radius:14px;background:var(--r-soft);color:var(--r-ink);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
+.m-danger svg{width:17px;height:17px;flex:0 0 auto}
+@media (prefers-reduced-motion:reduce){
+  .acc-sec,.acc-head .ic,.acc-head .chev,.tp-btn,.acc-sw,.acc-sw .ck,.thr-chip{transition:none}
+}
 
 /* Segmentierte Auswahl (Darstellung) */
 .seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface-2)}
