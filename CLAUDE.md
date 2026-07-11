@@ -25,10 +25,45 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - Der Nutzer committet/pusht selbst über **GitHub Desktop**
 
 ## Aktueller Stand / bisherige Überarbeitungen
-- **Code-Struktur (Umbau Stufe 1, erledigt):** Aufgeteilt in `index.html` (Struktur, ~285 Z.),
-  `styles.css` (~290 Z.) und `app.js` (~790 Z.); eingebunden per `<link rel="stylesheet">` und
-  `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien offline (Cache
-  `blutdruck-v13`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
+- **UI/UX-Modernisierung (Stufen 1–6, erledigt 2026-07-11):** Die gesamte sichtbare Schicht wurde
+  nach dem „Claude-Design"-Entwurf neu gebaut (reines HTML/CSS/JS, kein Build). **Datenmodell,
+  Speicher, Backup und Einstellungen blieben unverändert** – nur neu verkabelt. Kernpunkte:
+  - **Design-Tokens** (`:root` in [styles.css](styles.css)): Struktur
+    `--bg/--surf/--surf2/--ink/--muted/--line/--accent`, Ampel je Kategorie `--g/y/r-ink/-soft/-bar`,
+    Puls `--pulse-*`. Echter **Dark Mode** (per `@media (prefers-color-scheme)` **und**
+    `:root[data-theme]`) plus **5 Akzentfarben** (`settings.accent`: ozean/indigo/violett/petrol/
+    graphit) – `--accent` hängt von Akzent **und** Hell/Dunkel ab und wird per JS gesetzt
+    (`applyAccent`/`applyTheme`). Alte Token-Namen (`--surface/--text/--border/--primary` …) bleiben als
+    Aliasse. Schrift **Hanken Grotesk** lokal (`fonts/`, offline – keine Google-Fonts-Anfrage).
+  - **Navigation:** feste Tab-Bar unten **Dashboard · Verlauf · [ + ] · Diagramm · Menü** mit zentralem
+    „+"-Knopf (FAB, → neue Messung); Screen-Router `showTab(name)`
+    (`dashboard/capture/table/detail/chart`) blendet die passenden Vollbild-Screens ein. „Tabelle"
+    heißt jetzt **„Verlauf"** (Screen-Id bleibt `#tab-table`).
+  - **Dashboard** (Startseite, `renderDashboard`): letzte Messung mit Ampel-Status, Ø 7 Tage + Trend
+    (vs. Vorwoche), Ø Puls, Ampel-Verteilungs-Ring 30 Tage. Kennzahlen nach
+    [dashboard-spezifikation.md](dashboard-spezifikation.md).
+  - **Erfassen** (`#tab-capture`, geführte Eingabe): Sys → Dia → Puls einzeln über einen **eigenen
+    Ziffernblock**, große Vorschauzahl, Segment-Kacheln mit Ampel-Rückmeldung, Datum/Uhrzeit- und
+    Notiz-Sheet, Speichern-Häkchen. Verkabelt mit `addEntry`/`updateEntry`. Ersetzt die alte
+    Freitext-Eingabe **und** den früheren Bearbeiten-Dialog (`editDlg` entfiel).
+  - **Verlauf** (Liste) + **Detail-Screen:** chronologische Liste (Sys/Dia je in `catVal`-Farbe,
+    Zeilenpunkt = schlechterer), Zeitraum-Pillen 7/30/90 + eigener Von–Bis-Wähler; Zeile → Detail
+    (großer Wert in Ampelfarbe, Status, Position auf der Ampel-Skala, Kontext-Satz, Notiz;
+    Bearbeiten → Erfassen-Edit / Löschen → `askConfirm` + `removeEntry`).
+  - **Diagramm** (`renderChart`, SVG): Steuerleiste Sys/Dia/Beide + Puls-Umschalter + geteilter
+    Zeitraum; Verbindungslinien + **Ampel-Farbpunkte** (`catVal`) + gestrichelte Ø-Linie, **keine**
+    Schwellen-Linien/Zonen mehr. Ersetzt das alte 7-Linien-Diagramm samt `renderStats`.
+  - **Ampel pro Wert:** `catVal(v,y,r)` (Sys/Dia getrennt) neben der Gesamt-Ampel `category(e)`
+    (schlechterer von beiden). Schwellenwerte `settings.thr` – editierbar unter Menü → Anzeige →
+    „Zielbereich" (Ampel-Chips); „Design" dort für Hell/Dunkel/Auto + Akzentfarbe.
+  - **Obsolet:** die Schalter **„Werte-Ampel" (`colorDots`)** und **„Schwellenwert-Linien"
+    (`guideLines`)** sind aus der UI verschwunden (Verlauf färbt immer pro Wert, Diagramm nutzt immer
+    Farbpunkte); die Schlüssel bleiben in `settings`/Backup (Rückwärtskompatibilität), `updateThrEnabled`
+    entfiel. Toter Code aus dem Umbau wurde entfernt (u. a. `getSorted`, alte Tabellen-/Menü-CSS).
+- **Code-Struktur:** `index.html` (~400 Z.), `styles.css` (~665 Z.) und `app.js` (~1360 Z.); eingebunden
+  per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
+  offline (Cache **`blutdruck-v15`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
   im `meta`-Store unter dem Schlüssel `'settings'` (`idbGetMeta`/`idbSetMeta`); nach dem Laden aus
@@ -60,7 +95,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     heruntergeladen wird) als breiter Knopf **unter** beiden Karten – übergreifend für beide Methoden.
   - **Backup-Format (v2):** Die Datei enthält jetzt `{app, version, exportedAt, entries, settings}`
     statt nur eines reinen `entries`-Arrays (`backupData()`/`backupSettings()`). Gesichert werden nur
-    die **Vorlieben** (`colorDots`, `guideLines`, `theme`, `reminderDays`, `thr`) – geräte-interne
+    die **Vorlieben** (`colorDots`, `guideLines`, `theme`, `accent`, `reminderDays`, `thr`) – geräte-interne
     Erinnerungs-Merker (`firstDirtyAt`, `snoozeUntil`) nicht. Ältere Backups (reines Array) bleiben
     les- und wiederherstellbar; `mergeEntriesFromData` erkennt beide Formen.
   - **Einstellungen-Rückfrage beim Wiederherstellen** (`#restoreDlg`, eigenes Fenster statt
@@ -70,14 +105,15 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     von `offerSettingsRestore()`, geteilt von „Wiederherstellen" (`importJSON`) und
     „Auswählen"/„Ändern" (`pickBackupFile`). Messwerte werden in jedem Fall zusammengeführt.
 - **Menü:** als **klappbare Abschnitte** in fester Reihenfolge **Backup · Daten · Anzeige** plus
-  „Anleitung". Geöffnet über das **„Menü"-Icon unten rechts in der Tab-Bar** (Erfassen · Tabelle ·
+  „Anleitung". Geöffnet über das **„Menü"-Icon in der Tab-Bar** (Dashboard · Verlauf · [ + ] ·
   Diagramm · Menü). Im Abschnitt „Backup" stehen die zwei Gruppen (Automatisches/Manuelles Backup)
   als **abgesetzte Karten** (`.grp-card`, Überschrift `.grp-head`). Das Menü-Fenster ist schmaler als der
   Bildschirm, hat eine eigene Hintergrundfarbe (`--menu-bg`) und lässt ringsum Rand zum Raustippen.
   Beim Öffnen eines Abschnitts ist nur der **Inhalt scrollbar** – Kopf- und Fußleiste bleiben fest
   (offenes Fenster als senkrechter Flex-Container, `dialog[open]`), sodass „Menü schließen" nie
   abgeschnitten wird. **Keine Trennlinien** – der aufgeklappte Abschnitt hebt sich als **weiße Karte**
-  mit Schatten ab; **immer nur ein Abschnitt offen** (einen anderen öffnen schließt den vorigen). Das
+  mit Schatten ab (Karte `--surf`, das Abschnitts-Icon wird akzent-getönt); **immer nur ein Abschnitt
+  offen** (einen anderen öffnen schließt den vorigen). Oben eine **Griffleiste** (`.dlg-grab`); das
   Fenster sitzt **unten am Bildschirmrand** (daumenfreundlich) und schließt nur bei echtem Tippen auf
   die Backdrop-Fläche (`e.target===dialog`). Aus der Anleitung führt ein „‹ Zurück"-Button wieder ins
   Menü; Schließen-Buttons heißen „Menü schließen".
@@ -89,8 +125,9 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   (belegt von Kapazität · Prozent, sofern der Browser eine Quota liefert).
   Der frühere Persistenz-Status/„Aktivieren"-Link entfiel (dauerhafter Speicher wird beim Start
   automatisch angefordert).
-- **Anleitung:** umgangssprachliches Hilfe-Pop-up (`helpDlg`) mit 10 Abschnitten, inkl.
-  Automatischem Backup, Statistik-Hinweis und App-Installation.
+- **Anleitung:** umgangssprachliches Hilfe-Pop-up (`helpDlg`), an die neue Bedienung angepasst
+  (geführte Eingabe, Dashboard, Verlauf/Detail, neues Diagramm, Automatisches/Manuelles Backup,
+  Aussehen/Akzentfarbe, App-Installation).
 - **Fehler:** Wenn der Speicher voll ist (QuotaExceededError), erscheint ein Hinweis statt
   stillem Fehlschlag.
 - **Meldungen (Toasts):** kurze Rückmeldungen unten als farbige Karte mit Icon in drei Kategorien –
@@ -110,13 +147,13 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   Info-Symbol) und `requireCheck` (Pflicht-Häkchen – hält den Bestätigen-Knopf deaktiviert, bis
   angekreuzt; eigenes Kästchen: rot umrandet, gerundet, ohne Füllung). Der Meldungstext ist bewusst
   **gedämpft** (`--muted`), hervorgehobene Teile via `<b>` in `--text`. Drei Aufrufstellen:
-  **Eintrag löschen** (`#edDelete`) mit Eintrags-Vorschau (Datum + Werte in `--c-sys/-dia/-pulse`) und
-  rotem „Löschen"; **Teilen-Fallback** in `shareBackup()` (amber, blaues „Speichern", Diagnose-Info in
+  **Eintrag löschen** (`#detDelete` im Detail-Screen) mit Eintrags-Vorschau (Datum + Werte in
+  Ampelfarbe) und rotem „Löschen"; **Teilen-Fallback** in `shareBackup()` (amber, blaues „Speichern", Diagnose-Info in
   „Technische Details" verstaut); **Alle Daten löschen** (`clearAllData()`) mit fetter Anzahl,
   Info-Zeile zur erhaltenen Backup-Datei und Bestätigungs-Häkchen. Aufräumen des Zusatz-Blocks
   (`#confirmExtra`) passiert beim **Aufbau**, nicht im `close`-Handler (sonst könnte ein verzögertes
-  Schließen-Ereignis frischen Inhalt leeren). `#confirmDlg` steht im HTML **nach** `editDlg`/`menuDlg`
-  (Toast-im-Dialog-Mechanismus). Die bestehenden Erfolgs-Toasts nach der Aktion bleiben erhalten.
+  Schließen-Ereignis frischen Inhalt leeren). `#confirmDlg` steht im HTML **nach** `menuDlg`/`helpDlg`/
+  `restoreDlg` (Toast-im-Dialog-Mechanismus). Die bestehenden Erfolgs-Toasts nach der Aktion bleiben erhalten.
 
 ## Namens-Konvention (Backup vs. CSV)
 „Backup …" = vollständige Sicherung/Wiederherstellung (Dateiendung **.txt**, Inhalt JSON, originalgetreu;
@@ -125,27 +162,24 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 
 ## Geparkte Aufgaben
 
-Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
+Stand 2026-07-11: Der UI/UX-Block ist umgesetzt (siehe „Aktueller Stand"); der Rest gegen die
+Codebase geprüft.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
-### 1. UI/UX-Modernisierung (zusammenhängender Block)
-*Design zuerst als Grundlage, dann die Komponenten gleich im neuen Look – nicht zweimal anfassen.*
-- **Design/Look modernisieren** — mittel · problemlos. Farben & Farbverläufe, Schrift(größen),
-  Icons/Bilder, Buttons. Läuft größtenteils über die zentralen CSS-Variablen (`:root` in
-  [styles.css](styles.css)), inkl. Dark Mode.
-- **Diagramm + Schwellenwert-Darstellung entschlacken** — mittel · problemlos. **Dringend.** Heute
-  zeichnet `renderChart` bis zu 7 Linien in eine Grafik (3 Messwerte + 4 gestrichelte Schwellen) →
-  unübersichtlich. Mögliche Richtungen: Schwellen als farbige Hintergrund-Zonen statt Linien;
-  Sys/Dia und Puls in getrennte Diagramme. Konkrete Richtung später am echten Bild (Vorschau)
-  entscheiden. Verzahnt mit dem 4-Zahlen-Schwellenwert-Editor, der dadurch evtl. schlanker wird.
-- **Statistik-Bereich zu „Dashboard" ausbauen & modernisieren** — mittel · problemlos. `renderStats`
-  + CSS aufwerten und zur Übersicht erweitern: letzter Wert mit Ampel-Status, Trend 7/30 Tage
-  (vs. Vorperiode), Verteilung grün/gelb/rot, Backup-Status. (Vereint „Statistik modernisieren"
-  und „Dashboard".)
-- **Filter für Tabelle und Diagramm vereinheitlichen** — mittel · mit Hürde. Heute hat die Tabelle
-  das volle Filterpanel, das Diagramm nur Zeitraum-Chips. Logik ist schon geteilt (`filters`,
-  `getFiltered`), aber `syncFilterInputs` greift feste IDs (`#f_*`) → für zwei Panels einen
-  geteilten Filter bzw. Klassen statt doppelter IDs nötig.
+### 1. UI/UX-Modernisierung — **erledigt (Stufen 1–6, 2026-07-11)**
+Komplett umgesetzt (Details unter „Aktueller Stand"): Design-Tokens/Dark Mode/Akzentfarben, neue
+Tab-Bar + Dashboard, geführte Erfassen-Eingabe, Verlauf-Liste + Detail-Screen, entschlacktes Diagramm
+(Variante A), Menü als Bottom-Sheet mit „Anzeige" (Zielbereich + Design). Verlauf und Diagramm teilen
+sich jetzt **denselben Zeitraum** (`applyVerlaufRange` + `filters.from/to`).
+
+**Offen geblieben (bewusst zurückgestellt):**
+- **Detail-Filter + Sortierung wieder einbauen** — mittel · mit Hürde. Der Verlauf hat heute nur den
+  **Zeitraum**-Filter (7/30/90 + Von–Bis), wie im Entwurf. Die frühere Tabelle konnte zusätzlich nach
+  **Wertebereichen** (Sys/Dia/Puls min–max) und **Notiz-Text** filtern und nach Spalten **sortieren**.
+  Die geteilte Filter-Basis existiert noch (`filters` mit `sysMin/…/note`, `getFiltered`) – es fehlt nur
+  die Bedienoberfläche. Bei Wiedereinführung an **beide** Ansichten (Verlauf + Diagramm) denken (ein
+  geteiltes Panel bzw. Klassen statt fester `#f_*`-IDs); die im Abschluss entfernte `getSorted`-Funktion
+  müsste dann neu angelegt werden.
 
 ### 2. Weitere Features
 - **Arzt-Report (Druck/PDF)** — mittel–groß · problemlos. Aufbereiteter, druck-/teilbarer Bericht:
@@ -176,7 +210,8 @@ Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
   gegenseitiger Abhängigkeiten, allen voran Backup/Auto-Backup und Einstellungen/Theme, die quer
   durch mehrere künftige Module greifen würden). War bisher an Profile gekoppelt, damit Speicher/
   Backup nicht zweimal umgebaut werden – dieser Grund entfällt, da Profile gestrichen ist. Bleibt
-  für sich genommen sinnvoll: `app.js` ist mit ~790 Zeilen noch überschaubar, würde aber mit jeder
+  für sich genommen sinnvoll: `app.js` ist mit ~1360 Zeilen (nach der UI-Modernisierung deutlich
+  gewachsen) nicht mehr ganz so überschaubar und würde mit jeder
   weiteren Funktion unübersichtlicher, und eine Aufteilung nach Zuständigkeit passt zum bisherigen
   Vorgehen (siehe Stufe 1). Keine neue technische Hürde durch `type="module"`: Die App verlangt als
   PWA ohnehin einen http(s)/localhost-Kontext (wegen des Service Workers), das sonst übliche

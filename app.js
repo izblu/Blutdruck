@@ -229,8 +229,7 @@ function removeEntry(id){ entries=entries.filter(x=>x.id!==id); saveEntries(); m
 const RANGES={sys:[70,260],dia:[40,160],pulse:[30,220]};
 const inRange=(v,[a,b])=>v!=null&&v>=a&&v<=b;
 
-/* ---------- Filter / Sortierung (geteilt von Tabelle + Diagramm) ---------- */
-let sortKey='ts', sortDir='desc';
+/* ---------- Filter (geteilt von Verlauf + Diagramm) ---------- */
 const filters={from:'',to:'',sysMin:'',sysMax:'',diaMin:'',diaMax:'',pulMin:'',pulMax:'',note:''};
 
 function getFiltered(){
@@ -244,14 +243,6 @@ function getFiltered(){
     if(!numOk(e.pulse,filters.pulMin,filters.pulMax)) return false;
     if(filters.note && !(e.note||'').toLowerCase().includes(filters.note.toLowerCase())) return false;
     return true;
-  });
-}
-function getSorted(){
-  const list=getFiltered(), dir=sortDir==='asc'?1:-1;
-  return list.sort((a,b)=>{
-    const av=sortKey==='ts'?new Date(a.ts).getTime():a[sortKey];
-    const bv=sortKey==='ts'?new Date(b.ts).getTime():b[sortKey];
-    return av<bv?-dir:av>bv?dir:0;
   });
 }
 function category(e){            // Gesamt-Ampel: der schlechtere von Sys/Dia (medizinischer Standard)
@@ -380,7 +371,7 @@ function capSave(){
   else addEntry({id:uid(),ts:cap.date.toISOString(),sys,dia,pulse,note});
   $('#capSave').hidden=false;                 // Häkchen-Overlay, dann Zielscreen
   const back=cap.returnTab;
-  setTimeout(()=>{ $('#capSave').hidden=true; cap.saving=false; renderAll(); updateReminder(); showTab(back); },780);
+  setTimeout(()=>{ $('#capSave').hidden=true; cap.saving=false; refreshData(); updateReminder(); showTab(back); },780);
 }
 
 /* ----- Datum & Uhrzeit (Bottom-Sheet) ----- */
@@ -1336,7 +1327,6 @@ function showTab(name){
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
 function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
-function renderAll(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
 /* Höhe der Tab-Bar messen → CSS-Variable --navh (der Verlauf-Screen lässt genau diesen Platz unten frei). */
 function setNavH(){ const n=$('nav.bottom'); if(n&&n.offsetHeight) document.documentElement.style.setProperty('--navh',n.offsetHeight+'px'); }
 window.addEventListener('load',setNavH);

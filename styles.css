@@ -81,55 +81,15 @@ header.app{
 }
 header.app h1{font-size:1.1rem;margin:0;display:flex;align-items:center;gap:8px}
 header.app h1 .logo{width:24px;height:24px;display:inline-block}
-.icon-btn{
-  width:42px;height:42px;border:none;border-radius:50%;
-  background:transparent;color:var(--text);font-size:20px;
-  display:grid;place-items:center;
-}
-.icon-btn:active{background:var(--surface-2)}
-.icon-btn svg{width:24px;height:24px}
 
 main{max-width:760px;margin:0 auto;padding:16px}
 .tab{display:none}
 .tab.active{display:block;animation:fade .18s ease}
 @keyframes fade{from{opacity:.4}to{opacity:1}}
 
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-.muted{color:var(--muted)}
-.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-
 /* Hinweistext (im Menü/Formularen genutzt). Die Erfassen-Gestaltung steht weiter unten
    im Abschnitt „Erfassen (geführte Eingabe)". */
 .hint{font-size:.85rem;color:var(--muted);margin:6px 2px 0}
-
-/* ---- Toolbar (table) ---- */
-.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-.btn{padding:9px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface);color:var(--text);display:inline-flex;align-items:center;gap:6px}
-.btn:active{background:var(--surface-2)}
-.btn.active{border-color:var(--primary);color:var(--primary)}
-
-/* ---- Table ---- */
-table{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden}
-thead th{
-  font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
-  text-align:right;padding:11px 10px;border-bottom:1px solid var(--border);
-  white-space:nowrap;user-select:none;cursor:pointer;
-}
-thead th:first-child{text-align:left}
-thead th .arrow{font-size:.7rem;opacity:.7;margin-left:2px}
-tbody td{padding:11px 10px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums}
-tbody td.c-date{text-align:left;display:flex;align-items:center;gap:8px}
-tbody td.num{font-size:1.05rem;font-weight:600}
-tbody tr:last-child td{border-bottom:none}
-tbody tr{cursor:pointer}
-tbody tr:active{background:var(--surface-2)}
-.c-date .d{font-weight:600;font-size:.95rem}
-.c-date .t{font-size:.8rem}
-.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
-.dot.g{background:var(--cat-g)} .dot.y{background:var(--cat-y)} .dot.r{background:var(--cat-r)}
-.note-ic{font-size:.8rem;margin-left:2px}
-.empty{padding:36px 16px;text-align:center;color:var(--muted)}
-
 
 /* ---- Bottom nav + FAB ---- */
 nav.bottom{
@@ -172,10 +132,6 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-head{padding:16px 18px 0;font-size:1.1rem;font-weight:700;flex:0 0 auto}
 #menuDlg .dlg-head{padding:2px 18px 4px;font-weight:800}
 .dlg-body{padding:14px 18px;flex:1 1 auto;min-height:0;overflow:auto}
-.field{margin-bottom:12px}
-.field label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:5px}
-.field input{width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text)}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
 .dlg-actions{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--border);flex:0 0 auto}
 .dlg-actions .grow{flex:1}
 /* Senkrecht gestapelte Aktionen (z. B. Wiederherstellen-Rückfrage mit längeren Knopf-Texten) */
@@ -183,7 +139,6 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-actions.col .btn-fill{width:100%;text-align:center;line-height:1.3}
 .dlg-actions.col .btn-text{text-align:center}
 .btn-text{background:none;border:none;color:var(--primary);padding:10px;font-weight:600}
-.btn-danger{background:none;border:none;color:var(--danger);padding:10px;font-weight:600}
 .btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
 /* ---- Bestätigen-Rückfrage (#confirmDlg) ---- */
 .btn-fill-danger{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
@@ -210,9 +165,6 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .cdlg-check input{appearance:none;-webkit-appearance:none;width:20px;height:20px;flex:0 0 auto;margin:0;border:2px solid var(--danger);border-radius:6px;background:transparent;position:relative;cursor:pointer}
 .cdlg-check input:checked::after{content:"";position:absolute;left:5px;top:1px;width:5px;height:10px;border:solid var(--danger);border-width:0 2px 2px 0;transform:rotate(45deg)}
 .cdlg-check span{font-size:.92rem}
-.menu-item{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:14px 4px}
-.menu-item:disabled{opacity:.5;cursor:default}
-.menu-item .ic{width:24px;height:24px;flex:0 0 auto;color:var(--muted)}
 .reason{display:block;font-size:11px;color:var(--muted);margin:-4px 0 8px 36px}
 /* Auto-Backup-Datei: Name + Aktionen */
 .lf-actions{display:flex;gap:8px}
@@ -242,14 +194,8 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .acc-sec.open .acc-head .ic{background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
 /* Anleitung-Pop-up */
 .help-p{margin:0 0 12px;font-size:.95rem;line-height:1.5}
-.help-p code{background:var(--surface-2);padding:1px 6px;border-radius:6px;font-family:ui-monospace,monospace}
 .switch{display:flex;align-items:center;justify-content:space-between;padding:12px 4px}
 #reminderHint{margin:6px 0 0;padding:2px 4px 12px}
-.switch select{padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text)}
-input[type=checkbox].sw{width:46px;height:28px;appearance:none;background:var(--border);border-radius:999px;position:relative;transition:.2s;flex:0 0 auto}
-input[type=checkbox].sw:checked{background:var(--primary)}
-input[type=checkbox].sw::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
-input[type=checkbox].sw:checked::after{left:21px}
 
 /* Menü-Unterblöcke (Anzeige: Zielbereich, Design) */
 .mblk{background:var(--surf2);border-radius:14px;padding:11px 12px;margin-bottom:9px}
@@ -293,16 +239,6 @@ input[type=checkbox].sw:checked::after{left:21px}
 @media (prefers-reduced-motion:reduce){
   .acc-sec,.acc-head .ic,.acc-head .chev,.tp-btn,.acc-sw,.acc-sw .ck,.thr-chip{transition:none}
 }
-
-/* Segmentierte Auswahl (Darstellung) */
-.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface-2)}
-.seg-btn{border:none;background:none;color:var(--muted);padding:7px 11px;display:grid;place-items:center}
-.seg-btn+.seg-btn{border-left:1px solid var(--border)}
-.seg-btn.active{background:var(--primary);color:#fff}
-.seg-btn svg{width:20px;height:20px;display:block}
-/* Abschnitts-Überschrift im Menü */
-.sec-h{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600;margin:16px 4px 4px}
-.sec-h:first-child{margin-top:4px}
 
 /* Backup-Erinnerung */
 .rem-int{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:.9rem}
