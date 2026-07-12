@@ -72,7 +72,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     entfiel. Toter Code aus dem Umbau wurde entfernt (u. a. `getSorted`, alte Tabellen-/Menü-CSS).
 - **Code-Struktur:** `index.html` (~400 Z.), `styles.css` (~665 Z.) und `app.js` (~1360 Z.); eingebunden
   per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
-  offline (Cache **`blutdruck-v16`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  offline (Cache **`blutdruck-v17`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
   keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
