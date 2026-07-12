@@ -174,6 +174,9 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 
 Stand 2026-07-11: Der UI/UX-Block ist umgesetzt (siehe „Aktueller Stand"); der Rest gegen die
 Codebase geprüft.
+Nachtrag 2026-07-12: Fünf weitere Aufgaben geparkt (Medikamenten-Erinnerung + Einnahme-Tracking,
+Anleitungs-Textkorrektur, Puls-Linien-Animation, Akzentfarben pro Modus) – siehe unten in „2. Weitere
+Features", markiert mit *(neu geparkt 2026-07-12)*.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
 ### 1. UI/UX-Modernisierung — **erledigt (Stufen 1–6, 2026-07-11)**
@@ -213,6 +216,51 @@ sich jetzt **denselben Zeitraum** (`applyVerlaufRange` + `filters.from/to`).
     `mergeEntriesFromData`; Start-Sequenz `init → requestPersistence → initStorage`).
   - *Visualisierung:* Flows als **Grafiken** (build-frei, z. B. Mermaid in Markdown; Alternative SVG).
   Danach kann diese CLAUDE.md auf reinen Projektkontext verschlankt werden.
+- **Medikamenten-Erinnerung (Einnahme)** *(neu geparkt 2026-07-12)* — groß · heikel. Zu einer festen
+  Uhrzeit eine **echte Handy-Benachrichtigung** auslösen (mit **Ton** und Eintrag im
+  Benachrichtigungs-Menü / „Pull-down"), auch wenn die App gerade **nicht offen** ist.
+  *Kernhürde:* Eine reine PWA **ohne Server** kann eine zeitgesteuerte Benachrichtigung im **Hintergrund**
+  **nicht zuverlässig** garantieren. Bausteine/Wege (Verfügbarkeit **vor** der Umsetzung prüfen):
+  - **Benachrichtigungs-Erlaubnis** (`Notification.requestPermission`) + Service Worker
+    (`registration.showNotification`) – Grundlage für jede Variante.
+  - **Zeit-Auslöser lokal:** eine geplante Benachrichtigung ohne Server (Notification-Trigger,
+    `TimestampTrigger`) wäre ideal, ist aber experimentell und **nicht überall** verfügbar (v. a.
+    iOS/Safari stark eingeschränkt) → unsicher.
+  - **Web Push** (mit Server + VAPID-Schlüssel) wäre zuverlässiger, **widerspricht** aber dem Grundsatz
+    „kein Server / kein Build".
+  - Solange die App **offen** ist, geht eine Erinnerung per Timer (`setTimeout`) problemlos – nur eben
+    nicht im Hintergrund. Für eine „wecker-echte" Erinnerung bräuchte es evtl. eine **native Hülle**
+    (TWA/Capacitor) → großer Schritt weg von der reinen PWA.
+  - **Vorgehen:** zuerst **Machbarkeit klären**, dann Umfang festlegen (ggf. Android/Chromium zuerst,
+    iOS später bzw. eingeschränkt), inkl. Bedienoberfläche für Uhrzeit(en)/Dosis.
+- **Einnahme-Tracking** *(neu geparkt 2026-07-12 – Erweiterung der Medikamenten-Erinnerung)* — mittel ·
+  problemlos (für sich allein). Festhalten, **ob die Medikamente heute schon genommen** wurden
+  (Status „genommen/offen", Abhaken, kleiner Verlauf). Reine Daten + Bedienoberfläche und passt zum
+  bestehenden Muster (eigener Bereich in der Browser-Datenbank (IndexedDB), ins Backup aufnehmen). Hängt
+  inhaltlich an der Erinnerung, ist aber **technisch unabhängig** umsetzbar (auch ohne Hintergrund-
+  Benachrichtigung nutzbar).
+- **Anleitungs-Text: Backup-Sicherheit richtigstellen** *(neu geparkt 2026-07-12)* — klein · problemlos.
+  Der Hilfe-Text (`helpDlg` in [index.html](index.html)) suggeriert, dass Automatisches/Manuelles Backup
+  vor **Geräteverlust** schützt. Das stimmt nicht: Die Backup-Datei liegt weiterhin **nur auf dem Handy**.
+  Erst **„Backup teilen"** und Ablage an einem **dritten Ort** (NAS, Google Drive o. Ä.) ist wirklich
+  verlustsicher. Text entsprechend **korrigieren/ergänzen** (evtl. zusätzlich ein kurzer Hinweis direkt in
+  der Backup-Sektion des Menüs).
+- **Puls-Linie im Diagramm ohne Neu-Aufbau ein-/ausblenden** *(neu geparkt 2026-07-12)* — mittel ·
+  problemlos. Heute zeichnet der Puls-Umschalter das **ganze** Diagramm neu (`renderChart`), dadurch läuft
+  die komplette Einblend-Animation erneut. Gewünscht: nur die **Puls-Linie** zusätzlich **reinzeichnen**
+  (beim Einschalten) bzw. **ausblenden** (beim Ausschalten) – als eigene SVG-Ebene (`<path>`/`<g>`) mit
+  eigener Fade-/Zeichen-Animation, ohne das übrige Diagramm anzufassen. *Hürde:* `renderChart` baut das
+  SVG aktuell in **einem Rutsch** – die Puls-Ebene muss getrennt aktualisierbar werden (Teil-Update statt
+  Voll-Neuaufbau).
+- **Akzentfarben pro Hell-/Dunkelmodus optimieren** *(neu geparkt 2026-07-12)* — mittel · problemlos
+  (technisch); Schwerpunkt liegt aber im **Design**. Heute sind alle 5 Akzente (ozean/indigo/violett/
+  petrol/graphit) in **beiden** Modi verfügbar, `--accent` hängt an Akzent **und** Hell/Dunkel
+  (`applyAccent`/`applyTheme`). Ziel: je Modus **kuratierte** Farben, die optimal wirken und eine
+  **Premium-Anmutung** erzeugen; es ist ausdrücklich **in Ordnung, wenn nicht jede Farbe in beiden Modi**
+  vorkommt (Liste der verfügbaren Akzente ggf. **pro Modus**). **→ Überwiegend eine Design-/Ästhetik-
+  Aufgabe:** am besten als eigener **Design-Durchgang** angehen („Claude Design" / Frontend-Design-Skill).
+  Die technische Umsetzung danach (getrennte Farbtabellen je Modus, dynamische Akzent-Liste) ist klein
+  bis mittel.
 
 ### 3. Zurückgestellt (niedrige Priorität)
 - **Umbau Stufe 2 – JS in Module** (`storage.js`/`backup.js`/`chart.js`/`ui.js`, eingebunden per

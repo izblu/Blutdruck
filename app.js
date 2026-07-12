@@ -1357,56 +1357,63 @@ $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.data
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
 
 /* ---------- Nativer Zurück-Knopf (Android) ----------
-   Der Hardware-/Gesten-Zurück des Handys soll app-intern EINE Ebene zurückgehen – genau das, was
-   der jeweilige „Zurück"/„Schließen"-Knopf in der App tut – statt sofort die App zu verlassen. Nur
-   an der „Wurzel" (Dashboard, nichts offen) schließt Zurück die App wie gewohnt.
+   Ziel: Der Hardware-/Gesten-Zurück des Handys geht EINE Ebene in der App zurück, statt sie sofort
+   zu verlassen. Nur an der Wurzel (Dashboard, nichts offen) schließt Zurück die App.
 
-   Warum nötig: Eine PWA legt bei internen Screen-Wechseln keine Browser-Verlauf-Einträge an, an
-   denen der Zurück-Knopf hängt – der Verlauf ist leer, also verlässt Zurück sofort die Seite. Lösung
-   über die Verlauf-Schnittstelle (History-API): Solange es einen internen Zurück-Weg gibt, legen wir
-   einen Platzhalter-Eintrag („Guard", history.pushState) in den Verlauf. Der native Zurück löst dann
-   ein popstate-Ereignis aus, das wir abfangen und in die passende Aktion umleiten. Ob ein Guard
-   liegt, lesen wir direkt aus history.state.bpGuard (eine Wahrheitsquelle → keine Abweichung von der
-   echten Verlaufslage). */
+   Android behandelt zwei Dinge anders als ein PC-Browser – darauf ist das hier zugeschnitten:
+   1) Echte Fenster (modale <dialog>: Menü, Anleitung, Bestätigen, Wiederherstellen) schließt Android
+      beim Zurück-Druck SELBST – zuverlässig und in der richtigen Reihenfolge (oberstes zuerst).
+      Deshalb halten wir diese Fenster bewusst AUS unserer Logik heraus und lassen Android sie
+      schließen. Einzige Ausnahme: die Anleitung soll zurück INS Menü führen (siehe cancel unten).
+   2) Alles andere (die Vollbild-Screens + die Nicht-Fenster-Sheets Datum/Notiz/Zeitraum) erzeugt
+      keine Verlauf-Einträge, an denen der Zurück-Knopf hängt. Solange es hier einen Zurück-Weg gibt,
+      legen wir einen Platzhalter („Guard", history.pushState) in den Verlauf; der native Zurück löst
+      dann popstate aus, das wir abfangen. Ob ein Guard liegt, lesen wir aus history.state.bpGuard.
 
-/* Was heißt „eine Ebene zurück" im aktuellen Zustand? Reihenfolge = Priorität (oberste offene Ebene
-   zuerst). Gibt die auszuführende Rückwärts-Aktion zurück – oder null, wenn wir an der Wurzel sind. */
+   Android-Stabilität: Den nächsten Guard legen wir NICHT mitten im Zurück-Vorgang an (das schlägt auf
+   Android teils fehl und ließ dann Ebenen überspringen), sondern knapp danach (setTimeout). */
+
+/* „Eine Ebene zurück" im aktuellen Zustand – oberste Nicht-Fenster-Ebene zuerst. Fenster (<dialog>)
+   tauchen hier bewusst NICHT auf (die schließt Android selbst). null = Wurzel → Zurück schließt App. */
 function appBackTarget(){
-  if($('#helpDlg').open) return ()=>{ $('#helpDlg').close(); $('#menuDlg').showModal(); };   // Anleitung → zurück ins Menü (wie „‹ Zurück")
-  const dlg=[...$$('dialog')].reverse().find(d=>d.open);   // oberstes offenes Fenster (Menü/Bestätigen/Wiederherstellen)
-  if(dlg) return ()=>dlg.close();
-  if(!$('#capDtSheet').hidden) return capCloseDt;          // Bottom-Sheet Datum & Uhrzeit (Erfassen)
-  if(!$('#capNoteSheet').hidden) return capCloseNote;      // Bottom-Sheet Notiz (Erfassen)
-  if(!$('#rangeSheet').hidden) return closeRangeSheet;     // Zeitraum-Sheet (Verlauf)
-  if(!$('#dgPop').hidden) return closeDgPop;               // Zeitraum-Popover (Diagramm)
+  if(!$('#capDtSheet').hidden) return capCloseDt;          // Sheet Datum & Uhrzeit (Erfassen)
+  if(!$('#capNoteSheet').hidden) return capCloseNote;      // Sheet Notiz (Erfassen)
+  if(!$('#rangeSheet').hidden) return closeRangeSheet;     // Sheet Zeitraum (Verlauf)
+  if(!$('#dgPop').hidden) return closeDgPop;               // Popover Zeitraum (Diagramm)
   if(currentTab==='capture') return capClose;              // Erfassen → abbrechen (zurück zum Ausgangs-Tab)
   if(currentTab==='detail') return ()=>showTab('table');   // Detail → Verlauf
   if(currentTab==='table'||currentTab==='chart') return ()=>showTab('dashboard');   // Haupt-Tab → Dashboard
   return null;                                             // Dashboard, nichts offen → Zurück schließt die App
 }
-let _inPop=false;
-/* Guard-Eintrag im Verlauf an den aktuellen Zustand angleichen: Zurück-Weg vorhanden → genau ein
-   Guard liegt oben; kein Zurück-Weg → keiner. Der !_inPop-Schutz verhindert, dass wir aus dem
-   popstate-Ablauf heraus versehentlich einen weiteren Verlauf-Schritt auslösen. */
+let _inPop=false, _dlgCancelAt=0;
+/* Guard an den Zustand angleichen: Zurück-Weg vorhanden und noch keiner gelegt → einen legen. Läuft
+   NICHT während des Zurück-Vorgangs (dann ist _inPop gesetzt; der Guard wird knapp danach gelegt). */
 function syncBackGuard(){
+  if(_inPop) return;
   const hasBack=!!appBackTarget();
   const onGuard=!!(history.state&&history.state.bpGuard);
-  if(hasBack&&!onGuard) history.pushState({bpGuard:true},'');   // Zurück-Weg entstanden → Guard legen
-  else if(!hasBack&&onGuard&&!_inPop) history.back();           // Zurück-Weg per App-Bedienung entfallen → überzähligen Guard abräumen
+  if(hasBack&&!onGuard) history.pushState({bpGuard:true},'');
 }
-/* Nativer Zurück (bzw. unser history.back): eine Ebene schließen, danach den Guard neu bewerten. */
+/* Zurück-Druck (nativ oder per App-Knopf): eine Ebene schließen, danach den Guard neu legen.
+   Hat Android gerade mit demselben Druck ein Fenster geschlossen (cancel), war der Druck fürs
+   Fenster gedacht – dann NICHT zusätzlich eine Seite zurück, nur den Guard wiederherstellen. */
 window.addEventListener('popstate',()=>{
+  if(Date.now()-_dlgCancelAt<350){ setTimeout(syncBackGuard,0); return; }
   _inPop=true;
   const target=appBackTarget();
   if(target) target();
   _inPop=false;
-  syncBackGuard();
+  setTimeout(syncBackGuard,0);            // Guard knapp NACH dem Zurück-Vorgang legen (Android-sicher)
 });
-/* Alle Overlays (Fenster + Sheets/Popover) beobachten: Auf-/Zugehen ändert den Zurück-Weg – egal ob
-   per App-Knopf, Tippen daneben, Esc oder Programm. So bleibt der Guard immer synchron. */
+/* Nur die Nicht-Fenster-Sheets/Popover beobachten – auf-/zugehen ändert den Zurück-Weg (egal wie).
+   Fenster (<dialog>) bewusst NICHT beobachten (die laufen über Androids native Schließung). */
 const _backObs=new MutationObserver(()=>syncBackGuard());
-['#menuDlg','#helpDlg','#restoreDlg','#confirmDlg','#capDtSheet','#capNoteSheet','#rangeSheet','#dgPop']
-  .forEach(sel=>{ const el=$(sel); if(el) _backObs.observe(el,{attributes:true,attributeFilter:['open','hidden']}); });
+['#capDtSheet','#capNoteSheet','#rangeSheet','#dgPop']
+  .forEach(sel=>{ const el=$(sel); if(el) _backObs.observe(el,{attributes:true,attributeFilter:['hidden']}); });
+/* Modale Fenster: Android-Zurück/Esc feuert 'cancel'. Zeitpunkt merken (für den Schutz oben) und die
+   Fenster sich normal schließen lassen. Ausnahme Anleitung: zurück INS Menü statt alles zu schließen. */
+$$('dialog').forEach(d=>d.addEventListener('cancel',()=>{ _dlgCancelAt=Date.now(); }));
+$('#helpDlg').addEventListener('cancel',e=>{ e.preventDefault(); $('#helpDlg').close(); $('#menuDlg').showModal(); });
 
 function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
 /* Höhe der Tab-Bar messen → CSS-Variable --navh (der Verlauf-Screen lässt genau diesen Platz unten frei). */
