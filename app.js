@@ -1351,9 +1351,63 @@ function showTab(name){
   if(name==='table') renderTable();
   if(name==='detail') renderDetail(detailId);
   if(name==='chart') renderChart();
+  syncBackGuard();                                        // Zurück-Weg an den neuen Screen angleichen (Android-Zurück-Knopf)
 }
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
+
+/* ---------- Nativer Zurück-Knopf (Android) ----------
+   Der Hardware-/Gesten-Zurück des Handys soll app-intern EINE Ebene zurückgehen – genau das, was
+   der jeweilige „Zurück"/„Schließen"-Knopf in der App tut – statt sofort die App zu verlassen. Nur
+   an der „Wurzel" (Dashboard, nichts offen) schließt Zurück die App wie gewohnt.
+
+   Warum nötig: Eine PWA legt bei internen Screen-Wechseln keine Browser-Verlauf-Einträge an, an
+   denen der Zurück-Knopf hängt – der Verlauf ist leer, also verlässt Zurück sofort die Seite. Lösung
+   über die Verlauf-Schnittstelle (History-API): Solange es einen internen Zurück-Weg gibt, legen wir
+   einen Platzhalter-Eintrag („Guard", history.pushState) in den Verlauf. Der native Zurück löst dann
+   ein popstate-Ereignis aus, das wir abfangen und in die passende Aktion umleiten. Ob ein Guard
+   liegt, lesen wir direkt aus history.state.bpGuard (eine Wahrheitsquelle → keine Abweichung von der
+   echten Verlaufslage). */
+
+/* Was heißt „eine Ebene zurück" im aktuellen Zustand? Reihenfolge = Priorität (oberste offene Ebene
+   zuerst). Gibt die auszuführende Rückwärts-Aktion zurück – oder null, wenn wir an der Wurzel sind. */
+function appBackTarget(){
+  if($('#helpDlg').open) return ()=>{ $('#helpDlg').close(); $('#menuDlg').showModal(); };   // Anleitung → zurück ins Menü (wie „‹ Zurück")
+  const dlg=[...$$('dialog')].reverse().find(d=>d.open);   // oberstes offenes Fenster (Menü/Bestätigen/Wiederherstellen)
+  if(dlg) return ()=>dlg.close();
+  if(!$('#capDtSheet').hidden) return capCloseDt;          // Bottom-Sheet Datum & Uhrzeit (Erfassen)
+  if(!$('#capNoteSheet').hidden) return capCloseNote;      // Bottom-Sheet Notiz (Erfassen)
+  if(!$('#rangeSheet').hidden) return closeRangeSheet;     // Zeitraum-Sheet (Verlauf)
+  if(!$('#dgPop').hidden) return closeDgPop;               // Zeitraum-Popover (Diagramm)
+  if(currentTab==='capture') return capClose;              // Erfassen → abbrechen (zurück zum Ausgangs-Tab)
+  if(currentTab==='detail') return ()=>showTab('table');   // Detail → Verlauf
+  if(currentTab==='table'||currentTab==='chart') return ()=>showTab('dashboard');   // Haupt-Tab → Dashboard
+  return null;                                             // Dashboard, nichts offen → Zurück schließt die App
+}
+let _inPop=false;
+/* Guard-Eintrag im Verlauf an den aktuellen Zustand angleichen: Zurück-Weg vorhanden → genau ein
+   Guard liegt oben; kein Zurück-Weg → keiner. Der !_inPop-Schutz verhindert, dass wir aus dem
+   popstate-Ablauf heraus versehentlich einen weiteren Verlauf-Schritt auslösen. */
+function syncBackGuard(){
+  const hasBack=!!appBackTarget();
+  const onGuard=!!(history.state&&history.state.bpGuard);
+  if(hasBack&&!onGuard) history.pushState({bpGuard:true},'');   // Zurück-Weg entstanden → Guard legen
+  else if(!hasBack&&onGuard&&!_inPop) history.back();           // Zurück-Weg per App-Bedienung entfallen → überzähligen Guard abräumen
+}
+/* Nativer Zurück (bzw. unser history.back): eine Ebene schließen, danach den Guard neu bewerten. */
+window.addEventListener('popstate',()=>{
+  _inPop=true;
+  const target=appBackTarget();
+  if(target) target();
+  _inPop=false;
+  syncBackGuard();
+});
+/* Alle Overlays (Fenster + Sheets/Popover) beobachten: Auf-/Zugehen ändert den Zurück-Weg – egal ob
+   per App-Knopf, Tippen daneben, Esc oder Programm. So bleibt der Guard immer synchron. */
+const _backObs=new MutationObserver(()=>syncBackGuard());
+['#menuDlg','#helpDlg','#restoreDlg','#confirmDlg','#capDtSheet','#capNoteSheet','#rangeSheet','#dgPop']
+  .forEach(sel=>{ const el=$(sel); if(el) _backObs.observe(el,{attributes:true,attributeFilter:['open','hidden']}); });
+
 function refreshData(){ renderTable(); if(currentTab==='chart') renderChart(); if(currentTab==='dashboard') renderDashboard(); if(currentTab==='detail') renderDetail(detailId); }
 /* Höhe der Tab-Bar messen → CSS-Variable --navh (der Verlauf-Screen lässt genau diesen Platz unten frei). */
 function setNavH(){ const n=$('nav.bottom'); if(n&&n.offsetHeight) document.documentElement.style.setProperty('--navh',n.offsetHeight+'px'); }
