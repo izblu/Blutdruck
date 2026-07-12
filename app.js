@@ -306,7 +306,7 @@ function startCapture(entry,returnTab){
   $('#capTitle').textContent=cap.editing?'Messung bearbeiten':'Neue Messung';
   $('#capSave').hidden=true; $('#capDtSheet').hidden=true; $('#capNoteSheet').hidden=true;
   capSyncDateChip(); capUpdate();
-  showTab('capture');
+  navPush('capture',null);
 }
 
 /* Alles Sichtbare an den Zustand angleichen (Zahl, Einheit, Fortschritt, Kacheln, Knöpfe, Hinweis). */
@@ -360,7 +360,7 @@ function capNext(){
   if(cap.step<2){ if(cap.f[cap.step].length===0) return; cap.step++; capUpdate(); }
   else capSave();
 }
-function capClose(){ if(!cap.saving) showTab(cap.returnTab); }
+function capClose(){ if(!cap.saving) backToScreen(cap.returnTab); }
 function capSave(){
   if(cap.saving) return;
   const sys=parseInt(cap.f[0],10), dia=parseInt(cap.f[1],10), pulse=parseInt(cap.f[2],10);
@@ -371,12 +371,12 @@ function capSave(){
   else addEntry({id:uid(),ts:cap.date.toISOString(),sys,dia,pulse,note});
   $('#capSave').hidden=false;                 // Häkchen-Overlay, dann Zielscreen
   const back=cap.returnTab;
-  setTimeout(()=>{ $('#capSave').hidden=true; cap.saving=false; refreshData(); updateReminder(); showTab(back); },780);
+  setTimeout(()=>{ $('#capSave').hidden=true; cap.saving=false; refreshData(); updateReminder(); backToScreen(back); },780);
 }
 
 /* ----- Datum & Uhrzeit (Bottom-Sheet) ----- */
-function capOpenDt(){ cap.dtView={y:cap.date.getFullYear(),m:cap.date.getMonth()}; capRenderDt(); $('#capDtSheet').hidden=false; }
-function capCloseDt(){ $('#capDtSheet').hidden=true; }
+function capOpenDt(){ cap.dtView={y:cap.date.getFullYear(),m:cap.date.getMonth()}; capRenderDt(); navPush('capture','#capDtSheet'); }
+function capCloseDt(){ closeSheet('#capDtSheet'); }
 function capSetDtQuick(which){
   const c=cap.date; let d;
   if(which==='jetzt') d=new Date();
@@ -430,8 +430,8 @@ function capRenderDt(){
 }
 
 /* ----- Notiz (Bottom-Sheet) ----- */
-function capOpenNote(){ $('#capNoteTa').value=cap.note; $('#capNoteSheet').hidden=false; setTimeout(()=>$('#capNoteTa').focus(),50); }
-function capCloseNote(){ $('#capNoteSheet').hidden=true; }
+function capOpenNote(){ $('#capNoteTa').value=cap.note; navPush('capture','#capNoteSheet'); setTimeout(()=>$('#capNoteTa').focus(),50); }
+function capCloseNote(){ closeSheet('#capNoteSheet'); }
 function capApplyNote(){ cap.note=$('#capNoteTa').value; capCloseNote(); capUpdate(); }
 
 /* ----- Verkabelung ----- */
@@ -534,18 +534,19 @@ $('#vList').addEventListener('click',ev=>{ const b=ev.target.closest('.vrow'); i
 /* Zeitraum-Pillen. */
 $('#vFilter').addEventListener('click',ev=>{
   const b=ev.target.closest('.vh-pill'); if(!b) return;
-  if(b.dataset.r==='custom'){ openRangeSheet(); return; }
+  if(b.dataset.r==='custom'){ openRangeSheet(); navPush('table','#rangeSheet'); return; }
   verlaufRange=b.dataset.r; renderTable();
 });
 /* Zeitraum-Sheet (Von–Bis). */
-function openRangeSheet(){ $('#rsFrom').value=filters.from||''; $('#rsTo').value=filters.to||''; $('#rangeSheet').hidden=false; }
-function closeRangeSheet(){ $('#rangeSheet').hidden=true; }
+function openRangeSheet(){ $('#rsFrom').value=filters.from||''; $('#rsTo').value=filters.to||''; }   // nur befüllen; Anzeigen/Verlauf übernimmt navPush → applyTop
+function closeRangeSheet(){ closeSheet('#rangeSheet'); }
 $('#rangeSheet').addEventListener('click',ev=>{ if(ev.target.closest('[data-act=close]')) closeRangeSheet(); });
 $('#rsApply').addEventListener('click',()=>{
   let from=$('#rsFrom').value, to=$('#rsTo').value;
   if(from&&to&&from>to){ const t=from; from=to; to=t; }   // vertauscht → richtig herum
   filters.from=from; filters.to=to; verlaufRange='custom';
-  closeRangeSheet(); renderTable(); if(currentTab==='chart') renderChart();   // Zeitraum ist mit dem Diagramm geteilt
+  renderTable(); if(currentTab==='chart') renderChart();   // erst neu zeichnen (Zeitraum ist mit dem Diagramm geteilt) …
+  navBack();                                               // … dann das Sheet schließen (eine Ebene zurück)
 });
 document.addEventListener('keydown',ev=>{ if(ev.key==='Escape'&&!$('#rangeSheet').hidden){ ev.preventDefault(); closeRangeSheet(); } });
 
@@ -578,7 +579,7 @@ function detContext(e){
   return '<b>'+strong+'</b> ('+as+'/'+ad+') der letzten Wochen.';
 }
 
-function showDetail(id){ detailId=id; showTab('detail'); }
+function showDetail(id){ detailId=id; navPush('detail',null); }
 function renderDetail(id){
   const e=entries.find(x=>x.id===id);
   if(!e){ showTab('table'); return; }
@@ -617,14 +618,14 @@ function renderDetail(id){
   $('#detBody').innerHTML=html;
 }
 /* Detail-Aktionen: Zurück / Bearbeiten / Löschen. */
-$('#detBack').addEventListener('click',()=>showTab('table'));
+$('#detBack').addEventListener('click',()=>navBack());
 $('#detEdit').addEventListener('click',()=>{ const e=entries.find(x=>x.id===detailId); if(e) startCapture(e,'detail'); });
 $('#detDelete').addEventListener('click',()=>{
   const e=entries.find(x=>x.id===detailId); if(!e) return;
   const prev='<div class="pd">'+fmtDate(e.ts)+' · '+fmtTime(e.ts)+'</div>'
     +'<div class="pv"><span style="color:'+CAT_INK[catValFor('sys',e.sys)]+'">'+e.sys+'</span> / <span style="color:'+CAT_INK[catValFor('dia',e.dia)]+'">'+e.dia+'</span> · Puls '+e.pulse+'</div>';
   askConfirm({icon:'trash',tone:'danger',danger:true,title:'Eintrag löschen?',message:'Dieser Eintrag wird dauerhaft entfernt.',previewHTML:prev,confirmLabel:'Löschen'})
-    .then(ok=>{ if(ok){ removeEntry(detailId); showTab('table'); toast('Eintrag gelöscht'); } });
+    .then(ok=>{ if(ok){ removeEntry(detailId); navBack(); toast('Eintrag gelöscht'); } });
 });
 
 /* ---------- Diagramm (Variante A, SVG) ----------
@@ -798,7 +799,7 @@ $('#dgPulse').addEventListener('click',()=>{ diagPulse=!diagPulse; closeDgPop();
 $('#dgCal').addEventListener('click',()=>{ $('#dgPop').hidden?openDgPop():closeDgPop(); });
 $('#dgPop').addEventListener('click',ev=>{ const b=ev.target.closest('button'); if(!b) return;
   closeDgPop();
-  if(b.dataset.r==='custom'){ openRangeSheet(); return; }
+  if(b.dataset.r==='custom'){ openRangeSheet(); navPush('chart','#rangeSheet'); return; }
   verlaufRange=b.dataset.r; renderChart();
 });
 /* Tippen außerhalb schließt das Zeitraum-Popover. */
@@ -1351,65 +1352,74 @@ function showTab(name){
   if(name==='table') renderTable();
   if(name==='detail') renderDetail(detailId);
   if(name==='chart') renderChart();
-  syncBackGuard();                                        // Zurück-Weg an den neuen Screen angleichen (Android-Zurück-Knopf)
 }
-$$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
+$$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>goMainTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
 
-/* ---------- Nativer Zurück-Knopf (Android) ----------
-   Ziel: Der Hardware-/Gesten-Zurück des Handys geht EINE Ebene in der App zurück, statt sie sofort
-   zu verlassen. Nur an der Wurzel (Dashboard, nichts offen) schließt Zurück die App.
+/* ---------- Navigation & nativer Zurück-Knopf (Android) ----------
+   Modell: Der echte Browser-Verlauf bildet die App-Navigation 1:1 ab. Jede „Ebene" – ein Screen ODER
+   ein Bottom-Sheet – ist EIN echter Verlaufs-Eintrag (history.pushState). Der Handy-Zurück und jeder
+   App-„Zurück"-Knopf tun exakt dasselbe: einen Eintrag zurück (history.back()). Gezeichnet wird an
+   EINER einzigen Stelle – dem popstate-Handler über applyTop().
 
-   Android behandelt zwei Dinge anders als ein PC-Browser – darauf ist das hier zugeschnitten:
-   1) Echte Fenster (modale <dialog>: Menü, Anleitung, Bestätigen, Wiederherstellen) schließt Android
-      beim Zurück-Druck SELBST – zuverlässig und in der richtigen Reihenfolge (oberstes zuerst).
-      Deshalb halten wir diese Fenster bewusst AUS unserer Logik heraus und lassen Android sie
-      schließen. Einzige Ausnahme: die Anleitung soll zurück INS Menü führen (siehe cancel unten).
-   2) Alles andere (die Vollbild-Screens + die Nicht-Fenster-Sheets Datum/Notiz/Zeitraum) erzeugt
-      keine Verlauf-Einträge, an denen der Zurück-Knopf hängt. Solange es hier einen Zurück-Weg gibt,
-      legen wir einen Platzhalter („Guard", history.pushState) in den Verlauf; der native Zurück löst
-      dann popstate aus, das wir abfangen. Ob ein Guard liegt, lesen wir aus history.state.bpGuard.
+   Vorteil für künftige Features: Wer einen neuen Screen/Sheet über navPush(...) öffnet, ist damit
+   automatisch „zurück-fähig" – KEINE eigene Zurück-Logik nötig. Es wird NICHTS mehr nachträglich in
+   den Verlauf geschoben (das war die alte Sollbruchstelle, die auf Android Ebenen überspringen ließ).
 
-   Android-Stabilität: Den nächsten Guard legen wir NICHT mitten im Zurück-Vorgang an (das schlägt auf
-   Android teils fehl und ließ dann Ebenen überspringen), sondern knapp danach (setTimeout). */
+   viewStack spiegelt die offenen Ebenen als einfache Liste (Basis = Dashboard); history.state.d hält
+   die Tiefe (= Länge). Fenster (modale <dialog>: Menü/Anleitung/Bestätigen/Wiederherstellen) laufen
+   bewusst NICHT über dieses Modell – die schließt Android selbst (siehe cancel unten). Sollte Android
+   dabei zusätzlich einen Verlaufs-Eintrag verbrauchen, stellen wir ihn wieder her, statt eine Ebene
+   zurückzugehen. Das Diagramm-Zeitraum-Popover (#dgPop) ist ein leichtes Dropdown und ebenfalls kein
+   Verlaufs-Eintrag (wird beim nächsten Zeichnen mit-geschlossen). */
 
-/* „Eine Ebene zurück" im aktuellen Zustand – oberste Nicht-Fenster-Ebene zuerst. Fenster (<dialog>)
-   tauchen hier bewusst NICHT auf (die schließt Android selbst). null = Wurzel → Zurück schließt App. */
-function appBackTarget(){
-  if(!$('#capDtSheet').hidden) return capCloseDt;          // Sheet Datum & Uhrzeit (Erfassen)
-  if(!$('#capNoteSheet').hidden) return capCloseNote;      // Sheet Notiz (Erfassen)
-  if(!$('#rangeSheet').hidden) return closeRangeSheet;     // Sheet Zeitraum (Verlauf)
-  if(!$('#dgPop').hidden) return closeDgPop;               // Popover Zeitraum (Diagramm)
-  if(currentTab==='capture') return capClose;              // Erfassen → abbrechen (zurück zum Ausgangs-Tab)
-  if(currentTab==='detail') return ()=>showTab('table');   // Detail → Verlauf
-  if(currentTab==='table'||currentTab==='chart') return ()=>showTab('dashboard');   // Haupt-Tab → Dashboard
-  return null;                                             // Dashboard, nichts offen → Zurück schließt die App
+let viewStack=[{screen:'dashboard',sheet:null}];
+const NAV_SHEETS=['#capDtSheet','#capNoteSheet','#rangeSheet','#dgPop'];
+/* Sichtbares an die oberste Ebene angleichen: richtiger Screen + genau das dazugehörige Sheet. Den
+   Screen NUR wechseln, wenn er sich ändert – sonst bliebe z. B. die Erfassen-Eingabe nicht erhalten. */
+function applyTop(){
+  const top=viewStack[viewStack.length-1]||{screen:'dashboard',sheet:null};
+  if(currentTab!==top.screen) showTab(top.screen);
+  NAV_SHEETS.forEach(sel=>{ const el=$(sel); if(el&&!el.hidden) el.hidden=true; });
+  const cal=$('#dgCal'); if(cal) cal.classList.remove('active');
+  if(top.sheet){ const el=$(top.sheet); if(el) el.hidden=false; if(top.sheet==='#dgPop'&&cal) cal.classList.add('active'); }
 }
-let _inPop=false, _dlgCancelAt=0;
-/* Guard an den Zustand angleichen: Zurück-Weg vorhanden und noch keiner gelegt → einen legen. Läuft
-   NICHT während des Zurück-Vorgangs (dann ist _inPop gesetzt; der Guard wird knapp danach gelegt). */
-function syncBackGuard(){
-  if(_inPop) return;
-  const hasBack=!!appBackTarget();
-  const onGuard=!!(history.state&&history.state.bpGuard);
-  if(hasBack&&!onGuard) history.pushState({bpGuard:true},'');
+/* Eine Ebene tiefer öffnen (neuer Verlaufs-Eintrag). */
+function navPush(screen,sheet){ viewStack.push({screen,sheet:sheet||null}); history.pushState({d:viewStack.length},''); applyTop(); }
+/* Gleiche Ebene, anderer Inhalt (z. B. Verlauf ⇄ Diagramm über die Tab-Leiste – keine Stapelung). */
+function navReplace(screen,sheet){ viewStack[viewStack.length-1]={screen,sheet:sheet||null}; history.replaceState({d:viewStack.length},''); applyTop(); }
+/* Eine Ebene zurück – identisch für Handy-Zurück UND App-Knöpfe. Zeichnen übernimmt popstate. */
+function navBack(){ history.back(); }
+/* Bis zum nächsten passenden Screen zurück (Erfassen „Abbrechen/Speichern" → Ausgangs-Screen). */
+function backToScreen(name){
+  for(let i=viewStack.length-1;i>=0;i--){
+    if(viewStack[i].screen===name){ const steps=viewStack.length-1-i; if(steps>0) history.go(-steps); else applyTop(); return; }
+  }
+  navReplace(name,null);   // nicht im Stapel gefunden → aktuelle Ebene ersetzen (Sicherheitsnetz)
 }
-/* Zurück-Druck (nativ oder per App-Knopf): eine Ebene schließen, danach den Guard neu legen.
-   Hat Android gerade mit demselben Druck ein Fenster geschlossen (cancel), war der Druck fürs
-   Fenster gedacht – dann NICHT zusätzlich eine Seite zurück, nur den Guard wiederherstellen. */
-window.addEventListener('popstate',()=>{
-  if(Date.now()-_dlgCancelAt<350){ setTimeout(syncBackGuard,0); return; }
-  _inPop=true;
-  const target=appBackTarget();
-  if(target) target();
-  _inPop=false;
-  setTimeout(syncBackGuard,0);            // Guard knapp NACH dem Zurück-Vorgang legen (Android-sicher)
+/* Ein Sheet schließen – aber nur, wenn es wirklich die oberste Ebene ist (fängt Doppel-Schließen ab). */
+function closeSheet(sel){ const t=viewStack[viewStack.length-1]; if(t&&t.sheet===sel) navBack(); }
+/* Haupt-Tabs unten (Dashboard · Verlauf · Diagramm): Verlauf/Diagramm liegen EINE Ebene über dem
+   Dashboard. Seitlich wechseln = ersetzen (keine Stapelung); „Dashboard" = zurück zur Basis. */
+function goMainTab(name){
+  if(name===currentTab) return;
+  if(name==='dashboard'){ backToScreen('dashboard'); return; }
+  if(currentTab==='dashboard') navPush(name,null); else navReplace(name,null);
+}
+
+let _dlgCancelAt=0;
+/* Zurück-Druck (nativ oder Wisch). Fenster-Fall zuerst: Hat Android soeben ein Fenster geschlossen
+   (cancel) und dabei evtl. einen Verlaufs-Eintrag verbraucht, stellen wir den Eintrag wieder her –
+   und gehen NICHT zusätzlich eine Ebene zurück. Sonst: auf die hinterlegte Tiefe kürzen + neu zeichnen. */
+window.addEventListener('popstate',e=>{
+  const d=(e.state&&e.state.d)||1;
+  if(Date.now()-_dlgCancelAt<400){
+    if(d<viewStack.length) setTimeout(()=>history.pushState({d:viewStack.length},''),0);   // verbrauchten Eintrag ersetzen
+    return;
+  }
+  if(d<viewStack.length) viewStack.length=d;
+  applyTop();
 });
-/* Nur die Nicht-Fenster-Sheets/Popover beobachten – auf-/zugehen ändert den Zurück-Weg (egal wie).
-   Fenster (<dialog>) bewusst NICHT beobachten (die laufen über Androids native Schließung). */
-const _backObs=new MutationObserver(()=>syncBackGuard());
-['#capDtSheet','#capNoteSheet','#rangeSheet','#dgPop']
-  .forEach(sel=>{ const el=$(sel); if(el) _backObs.observe(el,{attributes:true,attributeFilter:['hidden']}); });
 /* Modale Fenster: Android-Zurück/Esc feuert 'cancel'. Zeitpunkt merken (für den Schutz oben) und die
    Fenster sich normal schließen lassen. Ausnahme Anleitung: zurück INS Menü statt alles zu schließen. */
 $$('dialog').forEach(d=>d.addEventListener('cancel',()=>{ _dlgCancelAt=Date.now(); }));
@@ -1444,7 +1454,8 @@ async function init(){
   await initStorage();                 // Daten aus IndexedDB laden / migrieren
   applyTheme(); applySettingsUI();     // aus IndexedDB geladene Einstellungen nachziehen (falls localStorage leer war)
   updateReminder(); setNavH();
-  showTab('dashboard');   // Verlauf rendert beim ersten Öffnen (showTab → renderTable)
+  history.replaceState({d:1},'');   // Basis-Eintrag (Dashboard) markieren – Zurück an der Wurzel verlässt die App
+  showTab('dashboard');             // Verlauf rendert beim ersten Öffnen (showTab → renderTable)
 
 }
 init();

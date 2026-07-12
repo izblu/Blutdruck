@@ -3,4 +3,4 @@
 design/
 
 # Lokale Entwicklungs-Konfiguration (Dev-Server)
-.claude/launch.json
+.claude\launch.json
