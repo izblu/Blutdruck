@@ -41,7 +41,17 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     heißt jetzt **„Verlauf"** (Screen-Id bleibt `#tab-table`).
   - **Dashboard** (Startseite, `renderDashboard`): letzte Messung mit Ampel-Status, Ø 7 Tage + Trend
     (vs. Vorwoche), Ø Puls, Ampel-Verteilungs-Ring 30 Tage. Kennzahlen nach
-    [dashboard-spezifikation.md](dashboard-spezifikation.md).
+    [dashboard-spezifikation.md](dashboard-spezifikation.md). **Einblend-Animation** beim Öffnen
+    (`animateDashboard`, per `requestAnimationFrame`, 680 ms, weiches Auslaufen): die großen Werte der
+    letzten Messung **zählen hoch** (Count-up) und der Verteilungs-Ring wird **kreisförmig aufgedeckt**
+    (der Farb-Kreis liegt als eigene Ebene `.ring-fill` unter der Mitte, eine `conic-gradient`-Maske
+    `--sweep` dreht von 0° auf 360°) samt hochzählender Prozentzahl. Respektiert
+    `prefers-reduced-motion` (dann sofort Endwert). Die übrigen Screens nutzen die
+    Entwurfs-Animationen (CSS-Keyframes, ebenfalls hinter `prefers-reduced-motion`):
+    **gestaffeltes Einblenden** (Dashboard-Karten via `nth-child`-Delay, Verlauf-Zeilen und
+    Diagramm-Punkte je mit `animation-delay` beim Rendern), **eingleitende Ampel-Marker** im
+    Detail (`markerGlide`, seitlicher Glide, versetzt 0,06/0,14 s) und **Bottom-Sheet-Slide**
+    fürs Öffnen von Menü/Anleitung (`#menuDlg/#helpDlg[open]` → `sheetSlide` + `scrimIn`).
   - **Erfassen** (`#tab-capture`, geführte Eingabe): Sys → Dia → Puls einzeln über einen **eigenen
     Ziffernblock**, große Vorschauzahl, Segment-Kacheln mit Ampel-Rückmeldung, Datum/Uhrzeit- und
     Notiz-Sheet, Speichern-Häkchen. Verkabelt mit `addEntry`/`updateEntry`. Ersetzt die alte
@@ -62,7 +72,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     entfiel. Toter Code aus dem Umbau wurde entfernt (u. a. `getSorted`, alte Tabellen-/Menü-CSS).
 - **Code-Struktur:** `index.html` (~400 Z.), `styles.css` (~665 Z.) und `app.js` (~1360 Z.); eingebunden
   per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
-  offline (Cache **`blutdruck-v15`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  offline (Cache **`blutdruck-v16`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
   keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen

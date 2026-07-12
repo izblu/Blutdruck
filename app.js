@@ -590,11 +590,11 @@ function renderDetail(id){
   /* Skala-Verlauf grün/gelb/rot – Umschlagpunkte aus den eingestellten Schwellenwerten. */
   const grad=(dom0,span,y,r)=>{ const yp=clamp((y-dom0)/span*100,0,100), rp=clamp((r-dom0)/span*100,0,100);
     return 'linear-gradient(90deg,var(--g-soft) 0 '+yp+'%,var(--y-soft) '+yp+'% '+rp+'%,var(--r-soft) '+rp+'% 100%)'; };
-  const scaleRow=(lab,valTxt,valColor,g,pct,mk)=>
+  const scaleRow=(lab,valTxt,valColor,g,pct,mk,delay)=>
     '<div class="det-scale-row"><div class="det-scale-top">'
     +'<span class="det-scale-lab">'+lab+'</span>'
     +'<span class="det-scale-val tnum" style="color:'+valColor+'">'+valTxt+'</span></div>'
-    +'<div class="det-scale-bar" style="background:'+g+'"><span class="det-scale-mk" style="left:'+pct+'%;background:'+mk+'"></span></div></div>';
+    +'<div class="det-scale-bar" style="background:'+g+'"><span class="det-scale-mk" style="left:'+pct+'%;background:'+mk+';animation-delay:'+delay+'s"></span></div></div>';
 
   let html='<div class="det-hero">'
     +'<span class="det-pill" style="background:'+CAT_SOFT[oc]+';color:'+CAT_INK[oc]+'"><span class="d" style="background:'+CAT_BAR[oc]+'"></span>'+CAT_LABEL[oc]+'</span>'
@@ -609,8 +609,8 @@ function renderDetail(id){
     +'<div class="det-date-main"><div class="det-date-1">'+fullDate+'</div>'
     +'<div class="det-date-2">'+time+'<span class="sep"></span>'+(tod==='abends'?IC_MOON:IC_SUN)+tod+'</div></div></div>';
   html+='<div class="det-card det-scale"><div class="det-scale-h">POSITION IM AMPELBEREICH</div>'
-    +scaleRow('Systolisch',e.sys+' · '+CAT_LABEL[sc],CAT_INK[sc],grad(90,80,t.sysY,t.sysR),sysPct,CAT_BAR[sc])
-    +scaleRow('Diastolisch',e.dia+' · '+CAT_LABEL[dc],CAT_INK[dc],grad(50,60,t.diaY,t.diaR),diaPct,CAT_BAR[dc])
+    +scaleRow('Systolisch',e.sys+' · '+CAT_LABEL[sc],CAT_INK[sc],grad(90,80,t.sysY,t.sysR),sysPct,CAT_BAR[sc],0.06)
+    +scaleRow('Diastolisch',e.dia+' · '+CAT_LABEL[dc],CAT_INK[dc],grad(50,60,t.diaY,t.diaR),diaPct,CAT_BAR[dc],0.14)
   +'</div>';
   html+='<div class="det-ctx">'+detContext(e)+'</div>';
   if(e.note) html+='<div class="det-card det-note">'+IC_NOTE+'<div class="det-note-txt">„'+escapeHtml(e.note)+'"</div></div>';
@@ -881,9 +881,9 @@ function renderDashboard(){
     +'</div>'
     +'<div class="dhero-nums">'
       +'<div style="display:flex;align-items:flex-end;gap:3px">'
-        +'<div class="dbig"><span class="n" style="color:'+CAT_INK[sc]+'">'+last.sys+'</span><span class="l" style="color:'+CAT_INK[sc]+'">SYS</span></div>'
+        +'<div class="dbig"><span class="n" data-count="'+last.sys+'" style="color:'+CAT_INK[sc]+'">'+last.sys+'</span><span class="l" style="color:'+CAT_INK[sc]+'">SYS</span></div>'
         +'<span class="dslash">/</span>'
-        +'<div class="dbig"><span class="n" style="color:'+CAT_INK[dc]+'">'+last.dia+'</span><span class="l" style="color:'+CAT_INK[dc]+'">DIA</span></div>'
+        +'<div class="dbig"><span class="n" data-count="'+last.dia+'" style="color:'+CAT_INK[dc]+'">'+last.dia+'</span><span class="l" style="color:'+CAT_INK[dc]+'">DIA</span></div>'
       +'</div>'
       +'<div class="dhero-side"><div class="u">mmHg</div><div class="p">Puls '+last.pulse+'</div></div>'
     +'</div>'
@@ -919,12 +919,40 @@ function renderDashboard(){
     const p=roundTo100([g/total*100,y/total*100,r/total*100]), pg=p[0],py=p[1],pr=p[2];
     const seg='conic-gradient(var(--g-bar) 0 '+pg+'%,var(--y-bar) '+pg+'% '+(pg+py)+'%,var(--r-bar) '+(pg+py)+'% 100%)';
     html+='<div class="ddist-body">'
-      +'<div class="ring" style="background:'+seg+'"><div class="ring-c"><span class="ring-pct" style="color:var(--g-ink)">'+pg+'%</span><span class="ring-lbl">im Ziel</span></div></div>'
+      +'<div class="ring"><div class="ring-fill" style="background:'+seg+'"></div><div class="ring-c"><span class="ring-pct" data-count="'+pg+'" data-suf="%" style="color:var(--g-ink)">'+pg+'%</span><span class="ring-lbl">im Ziel</span></div></div>'
       +'<div class="dleg">'+legRow('var(--g-bar)','Im Ziel',g,pg)+legRow('var(--y-bar)','Erhöht',y,py)+legRow('var(--r-bar)','Zu hoch',r,pr)+'</div>'
     +'</div>';
   }
   html+='</div>';
   host.innerHTML=html;
+  animateDashboard();
+}
+
+/* Dashboard-Einblendung: die großen Zahlen zählen hoch (Count-up) und der Ampel-Ring
+   wird kreisförmig aufgedeckt (Maske dreht von 0° auf 360°). Läuft bei jedem Öffnen des
+   Dashboards. Respektiert „Bewegung reduzieren" (prefers-reduced-motion) → sofort Endwert. */
+let dashRAF=0;
+function animateDashboard(){
+  const host=$('#dashboard'); if(!host) return;
+  const nums=[...host.querySelectorAll('[data-count]')].map(el=>({el,to:+el.dataset.count,suf:el.dataset.suf||''}));
+  const fill=host.querySelector('.ring-fill');
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduce){
+    nums.forEach(n=>{ n.el.textContent=n.to+n.suf; });
+    if(fill) fill.style.setProperty('--sweep','360deg');
+    return;
+  }
+  nums.forEach(n=>{ n.el.textContent='0'+n.suf; });
+  if(fill) fill.style.setProperty('--sweep','0deg');
+  const dur=680,t0=performance.now(),ease=p=>1-Math.pow(1-p,3);
+  cancelAnimationFrame(dashRAF);
+  const tick=now=>{
+    const p=Math.min(1,(now-t0)/dur),e=ease(p);
+    nums.forEach(n=>{ n.el.textContent=Math.round(n.to*e)+n.suf; });
+    if(fill) fill.style.setProperty('--sweep',(360*e).toFixed(1)+'deg');
+    if(p<1) dashRAF=requestAnimationFrame(tick);
+  };
+  dashRAF=requestAnimationFrame(tick);
 }
 
 /* ---------- Export / Import ---------- */
