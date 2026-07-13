@@ -665,6 +665,9 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 /* SVG-Animationen der Grafik: Linie „zeichnen", Punkte „aufpoppen" (Klassen via JS, nur ohne reduced-motion) */
 .dg-line{stroke-dasharray:1200;stroke-dashoffset:1200;animation:drawLine .8s ease forwards}
 .dg-pt{transform-box:fill-box;transform-origin:center;animation:popPt .3s ease both}
+/* Puls-Ebene beim Ausschalten (setDiagPulseLayer): kurz ausblenden statt abrupt verschwinden */
+.dg-pulse-g{transition:opacity .2s ease}
+.dg-pulse-g.out{opacity:0}
 @keyframes drawLine{to{stroke-dashoffset:0}}
 @keyframes popPt{0%{opacity:0;transform:scale(0)}60%{opacity:1;transform:scale(1.15)}100%{opacity:1;transform:scale(1)}}
 @keyframes fadein{from{opacity:0}to{opacity:1}}
@@ -679,4 +682,5 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
   .det-nav:active,.det-primary:active,.det-del:active{transform:none}
   .dg-line,.dg-pt{animation:none;stroke-dashoffset:0}
   .vh-ink{transition:none}
+  .dg-pulse-g{transition:none}
 }

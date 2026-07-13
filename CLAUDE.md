@@ -31,10 +31,16 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   - **Design-Tokens** (`:root` in [styles.css](styles.css)): Struktur
     `--bg/--surf/--surf2/--ink/--muted/--line/--accent`, Ampel je Kategorie `--g/y/r-ink/-soft/-bar`,
     Puls `--pulse-*`. Echter **Dark Mode** (per `@media (prefers-color-scheme)` **und**
-    `:root[data-theme]`) plus **5 Akzentfarben** (`settings.accent`: ozean/indigo/violett/petrol/
-    graphit) – `--accent` hängt von Akzent **und** Hell/Dunkel ab und wird per JS gesetzt
-    (`applyAccent`/`applyTheme`). Alte Token-Namen (`--surface/--text/--border/--primary` …) bleiben als
-    Aliasse. Schrift **Hanken Grotesk** lokal (`fonts/`, offline – keine Google-Fonts-Anfrage).
+    `:root[data-theme]`) plus **Akzentfarben pro Modus** (`settings.accent`, Standard `kobalt`):
+    Hell und Dunkel haben je eine eigene, kuratierte 6-Farben-Liste (`ACCENTS_LIGHT`/`ACCENTS_DARK`
+    in app.js) statt gemeinsamer Töne nur auf-/abgehellt – einzelne Farben kommen bewusst nur in
+    einem Modus vor (z. B. „Iris" nur hell, „Aqua" nur dunkel). `--accent` (Fläche) **und**
+    **`--accent-ink`** (Schrift/Icon darauf – schwarz oder weiß, je nach Helligkeit der Fläche)
+    werden gemeinsam per JS gesetzt (`applyAccent`/`applyTheme`/`resolveAccent`); wählt man eine
+    Farbe, die im anderen Modus fehlt, fällt nur die **Anzeige** auf den Standard zurück (die
+    eigentliche Wahl bleibt gespeichert und gilt wieder, sobald der Modus zurückwechselt). Alte
+    Token-Namen (`--surface/--text/--border/--primary` …) bleiben als Aliasse. Schrift
+    **Hanken Grotesk** lokal (`fonts/`, offline – keine Google-Fonts-Anfrage).
   - **Navigation:** feste Tab-Bar unten **Dashboard · Verlauf · [ + ] · Diagramm · Menü** mit zentralem
     „+"-Knopf (FAB, → neue Messung); Screen-Router `showTab(name)`
     (`dashboard/capture/table/detail/chart`) blendet die passenden Vollbild-Screens ein. „Tabelle"
@@ -62,7 +68,13 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     Bearbeiten → Erfassen-Edit / Löschen → `askConfirm` + `removeEntry`).
   - **Diagramm** (`renderChart`, SVG): Steuerleiste Sys/Dia/Beide + Puls-Umschalter + geteilter
     Zeitraum; Verbindungslinien + **Ampel-Farbpunkte** (`catVal`) + gestrichelte Ø-Linie, **keine**
-    Schwellen-Linien/Zonen mehr. Ersetzt das alte 7-Linien-Diagramm samt `renderStats`.
+    Schwellen-Linien/Zonen mehr. Ersetzt das alte 7-Linien-Diagramm samt `renderStats`. Der
+    Puls-Umschalter baut dafür **nicht** jedes Mal das ganze Diagramm neu: `setDiagPulseLayer`
+    fügt nur die rosa Puls-Ebene (`<g class="dg-pulse-g">` – Linie, Punkte, „bpm"-Beschriftung,
+    gebaut von `diagPulseLayer`) ein bzw. blendet sie aus (Fade-out per CSS, danach entfernt) und
+    verschiebt Höhe/Datumszeile der Grafik mit; die Sys-/Dia-Linien und -Punkte bleiben dabei
+    unangetastet und spielen ihre Einblend-Animation nicht erneut ab. `renderChart`/`buildDiagChart`
+    laufen weiterhin komplett bei Wechsel von Reihe oder Zeitraum.
   - **Ampel pro Wert:** `catVal(v,y,r)` (Sys/Dia getrennt) neben der Gesamt-Ampel `category(e)`
     (schlechterer von beiden). Schwellenwerte `settings.thr` – editierbar unter Menü → Anzeige →
     „Zielbereich" (Ampel-Chips); „Design" dort für Hell/Dunkel/Auto + Akzentfarbe.
@@ -177,6 +189,9 @@ Codebase geprüft.
 Nachtrag 2026-07-12: Fünf weitere Aufgaben geparkt (Medikamenten-Erinnerung + Einnahme-Tracking,
 Anleitungs-Textkorrektur, Puls-Linien-Animation, Akzentfarben pro Modus) – siehe unten in „2. Weitere
 Features", markiert mit *(neu geparkt 2026-07-12)*.
+Nachtrag 2026-07-13: Puls-Linien-Animation und Akzentfarben pro Modus umgesetzt (siehe „Aktueller
+Stand") und unten entfernt; die übrigen drei aus dem 2026-07-12-Batch (Medikamenten-Erinnerung,
+Einnahme-Tracking, Anleitungs-Textkorrektur) bleiben geparkt.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
 ### 1. UI/UX-Modernisierung — **erledigt (Stufen 1–6, 2026-07-11)**
@@ -245,22 +260,6 @@ sich jetzt **denselben Zeitraum** (`applyVerlaufRange` + `filters.from/to`).
   Erst **„Backup teilen"** und Ablage an einem **dritten Ort** (NAS, Google Drive o. Ä.) ist wirklich
   verlustsicher. Text entsprechend **korrigieren/ergänzen** (evtl. zusätzlich ein kurzer Hinweis direkt in
   der Backup-Sektion des Menüs).
-- **Puls-Linie im Diagramm ohne Neu-Aufbau ein-/ausblenden** *(neu geparkt 2026-07-12)* — mittel ·
-  problemlos. Heute zeichnet der Puls-Umschalter das **ganze** Diagramm neu (`renderChart`), dadurch läuft
-  die komplette Einblend-Animation erneut. Gewünscht: nur die **Puls-Linie** zusätzlich **reinzeichnen**
-  (beim Einschalten) bzw. **ausblenden** (beim Ausschalten) – als eigene SVG-Ebene (`<path>`/`<g>`) mit
-  eigener Fade-/Zeichen-Animation, ohne das übrige Diagramm anzufassen. *Hürde:* `renderChart` baut das
-  SVG aktuell in **einem Rutsch** – die Puls-Ebene muss getrennt aktualisierbar werden (Teil-Update statt
-  Voll-Neuaufbau).
-- **Akzentfarben pro Hell-/Dunkelmodus optimieren** *(neu geparkt 2026-07-12)* — mittel · problemlos
-  (technisch); Schwerpunkt liegt aber im **Design**. Heute sind alle 5 Akzente (ozean/indigo/violett/
-  petrol/graphit) in **beiden** Modi verfügbar, `--accent` hängt an Akzent **und** Hell/Dunkel
-  (`applyAccent`/`applyTheme`). Ziel: je Modus **kuratierte** Farben, die optimal wirken und eine
-  **Premium-Anmutung** erzeugen; es ist ausdrücklich **in Ordnung, wenn nicht jede Farbe in beiden Modi**
-  vorkommt (Liste der verfügbaren Akzente ggf. **pro Modus**). **→ Überwiegend eine Design-/Ästhetik-
-  Aufgabe:** am besten als eigener **Design-Durchgang** angehen („Claude Design" / Frontend-Design-Skill).
-  Die technische Umsetzung danach (getrennte Farbtabellen je Modus, dynamische Akzent-Liste) ist klein
-  bis mittel.
 
 ### 3. Zurückgestellt (niedrige Priorität)
 - **Umbau Stufe 2 – JS in Module** (`storage.js`/`backup.js`/`chart.js`/`ui.js`, eingebunden per

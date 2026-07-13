@@ -635,6 +635,7 @@ $('#detDelete').addEventListener('click',()=>{
    Zonen-Labels + 3 Statistik-Kacheln; „Beide" mit zwei Ø-Werten + Statistik-Tabelle (Sys/Dia/Puls
    × Ø/Max/Min) und optionaler rosa Puls-Spur. Datenlogik unverändert (nur neue Darstellung). */
 let diagSeries='both', diagPulse=false;
+let lastChartList=null, pulseFadeTimer=null;   // fürs Teil-Update der Puls-Ebene (setDiagPulseLayer)
 const prefersReduce=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
 const DG_SHORT={'7':'7 Tage','30':'30 Tage','90':'90 Tage','custom':'Zeitraum'};
 
@@ -706,23 +707,65 @@ function buildDiagChart(list){
       s+='<circle'+(anim?' class="dg-pt"':'')+' cx="'+X(i)+'" cy="'+Y(m[k])+'" r="'+rad+'" fill="'+barOf(c)+'" stroke="'+R.surf+'" stroke-width="1.4"'+(anim?' style="animation-delay:'+(0.34+i*0.03).toFixed(2)+'s"':'')+'/>';
     });
   });
-  if(showPulse){                                       // eigene rosa Puls-Spur unten
-    const pv=list.map(m=>m.pulse), pmin=Math.min(...pv)-6, pmax=Math.max(...pv)+6, laneTop=146,laneBot=160;
-    const PY=v=>+(laneBot-(v-pmin)/((pmax-pmin)||1)*(laneBot-laneTop)).toFixed(1);
-    s+='<polyline'+(anim?' class="dg-line"':'')+' points="'+list.map((m,i)=>X(i)+','+PY(m.pulse)).join(' ')+'" fill="none" stroke="'+R.pBar+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>';
-    list.forEach((m,i)=>{ s+='<circle'+(anim?' class="dg-pt"':'')+' cx="'+X(i)+'" cy="'+PY(m.pulse)+'" r="2.5" fill="'+R.pBar+'" stroke="'+R.surf+'" stroke-width="1.1"'+(anim?' style="animation-delay:'+(0.4+i*0.03).toFixed(2)+'s"':'')+'/>'; });
-    s+='<text x="236" y="'+(PY(pmax)+8)+'" font-size="7.5" font-weight="800" fill="'+R.pInk+'">bpm</text>';
-  }
-  const dlab=(idx,anchor)=>{ const m=list[idx]; if(!m) return ''; const d=new Date(m.ts);
-    return '<text x="'+X(idx)+'" y="'+datesY+'" font-size="8" font-weight="600" fill="'+R.muted+'" text-anchor="'+anchor+'">'+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.</text>'; };
-  s+=dlab(0,'start'); if(n>2) s+=dlab(Math.floor((n-1)/2),'middle'); s+=dlab(n-1,'end');
+  if(showPulse) s+=diagPulseLayer(list,anim);
+  s+='<g class="dg-dates">'+diagDateLabels(list,n,X,datesY,R.muted)+'</g>';
 
-  return '<svg viewBox="0 0 268 '+chartH+'" width="100%" style="display:block">'+s+'</svg>';
+  return '<svg class="dg-svg" viewBox="0 0 268 '+chartH+'" width="100%" style="display:block">'+s+'</svg>';
+}
+/* Datums-Beschriftung unter der Grafik (erster/mittlerer/letzter Punkt) – eigene Funktion, damit
+   der Puls-Umschalter (setDiagPulseLayer) nur die Y-Position verschieben muss statt das ganze
+   Diagramm neu zu bauen. */
+function diagDateLabels(list,n,X,y,muted){
+  const dlab=(idx,anchor)=>{ const m=list[idx]; if(!m) return ''; const d=new Date(m.ts);
+    return '<text class="dg-datelabel" x="'+X(idx)+'" y="'+y+'" font-size="8" font-weight="600" fill="'+muted+'" text-anchor="'+anchor+'">'+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.</text>'; };
+  return dlab(0,'start')+(n>2?dlab(Math.floor((n-1)/2),'middle'):'')+dlab(n-1,'end');
+}
+/* Eigene rosa Puls-Spur (Linie+Punkte+„bpm") als austauschbare Ebene <g class="dg-pulse-g">:
+   dieselbe Funktion baut sie sowohl beim vollen Diagramm-Aufbau (anim=Einblend-Reihenfolge der
+   ganzen Grafik) als auch beim Ein-/Ausblenden über den Puls-Umschalter (setDiagPulseLayer,
+   anim=eigene Zeichen-Animation), damit die Koordinaten nie auseinanderlaufen. */
+function diagPulseLayer(list,anim){
+  const xL=14,xR=232,n=list.length;
+  const X=i=>n<=1?(xL+xR)/2:+(xL+i*(xR-xL)/(n-1)).toFixed(1);
+  const pv=list.map(m=>m.pulse), pmin=Math.min(...pv)-6, pmax=Math.max(...pv)+6, laneTop=146,laneBot=160;
+  const PY=v=>+(laneBot-(v-pmin)/((pmax-pmin)||1)*(laneBot-laneTop)).toFixed(1);
+  const pBar=cssVar('--pulse-bar'), pInk=cssVar('--pulse-ink'), surf=cssVar('--surf');
+  let s='<g class="dg-pulse-g">';
+  s+='<polyline'+(anim?' class="dg-line"':'')+' points="'+list.map((m,i)=>X(i)+','+PY(m.pulse)).join(' ')+'" fill="none" stroke="'+pBar+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>';
+  list.forEach((m,i)=>{ s+='<circle'+(anim?' class="dg-pt"':'')+' cx="'+X(i)+'" cy="'+PY(m.pulse)+'" r="2.5" fill="'+pBar+'" stroke="'+surf+'" stroke-width="1.1"'+(anim?' style="animation-delay:'+(0.4+i*0.03).toFixed(2)+'s"':'')+'/>'; });
+  s+='<text x="236" y="'+(PY(pmax)+8)+'" font-size="7.5" font-weight="800" fill="'+pInk+'">bpm</text>';
+  s+='</g>';
+  return s;
+}
+/* Puls-Umschalter: baut NICHT das ganze Diagramm neu (renderChart), sondern fügt nur die
+   Puls-Ebene ein bzw. blendet sie aus – Sys/Dia-Linien/-Punkte bleiben unberührt und spielen
+   ihre Einblend-Animation nicht erneut ab. Höhe/Datumszeile springen mit (kein eigener
+   Animationswunsch dafür), die Puls-Ebene selbst zeichnet sich ein bzw. blendet aus. */
+function setDiagPulseLayer(show){
+  const svg=$('#dgBody .dg-svg');
+  if(!svg){ renderChart(); return; }                   // kein Diagramm sichtbar (z. B. leere Liste) → normal aufbauen
+  clearTimeout(pulseFadeTimer);
+  const list=lastChartList||[];
+  const applySize=()=>{
+    svg.setAttribute('viewBox','0 0 268 '+(show?172:164));
+    $$('.dg-datelabel',svg).forEach(t=>t.setAttribute('y',show?168:158));
+  };
+  const old=$('.dg-pulse-g',svg);
+  if(show){
+    if(old) old.remove();                              // Rest einer noch ausblendenden Ebene entfernen
+    applySize();
+    $('.dg-dates',svg).insertAdjacentHTML('beforebegin', diagPulseLayer(list,!prefersReduce()));
+  } else if(old){
+    if(prefersReduce()){ old.remove(); applySize(); return; }
+    old.classList.add('out');
+    pulseFadeTimer=setTimeout(()=>{ old.remove(); applySize(); },220);
+  } else applySize();
 }
 
 function renderChart(){
   applyVerlaufRange();                                 // gemeinsamer Zeitraum mit dem Verlauf
   const list=getFiltered().slice().sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  lastChartList=list;                                  // fürs Teil-Update der Puls-Ebene (setDiagPulseLayer)
   const both=diagSeries==='both', short=DG_SHORT[verlaufRange]||'30 Tage';
   $('#dgSub').textContent='Blutdruck · '+short+' · '+list.length+(list.length===1?' Messung':' Messungen');
   $$('#dgSeg .dg-seg-btn').forEach(b=>b.classList.toggle('active',b.dataset.s===diagSeries));
@@ -795,7 +838,11 @@ function openDgPop(){ $('#dgPop').hidden=false; $('#dgCal').classList.add('activ
 function closeDgPop(){ $('#dgPop').hidden=true; $('#dgCal').classList.remove('active'); }
 $('#dgSeg').addEventListener('click',ev=>{ const b=ev.target.closest('.dg-seg-btn'); if(!b) return;
   if(diagSeries!==b.dataset.s){ diagSeries=b.dataset.s; closeDgPop(); renderChart(); } });
-$('#dgPulse').addEventListener('click',()=>{ diagPulse=!diagPulse; closeDgPop(); renderChart(); });
+$('#dgPulse').addEventListener('click',()=>{
+  diagPulse=!diagPulse; closeDgPop();
+  $('#dgPulse').classList.toggle('active',diagPulse);
+  setDiagPulseLayer(diagPulse);                        // nur die Puls-Ebene ein-/ausblenden, nicht das ganze Diagramm
+});
 $('#dgCal').addEventListener('click',()=>{ $('#dgPop').hidden?openDgPop():closeDgPop(); });
 $('#dgPop').addEventListener('click',ev=>{ const b=ev.target.closest('button'); if(!b) return;
   closeDgPop();
