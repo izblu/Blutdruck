@@ -116,7 +116,7 @@ function askConfirm(opts){
 
 /* ---------- Speicherung ---------- */
 const LS_KEY='bp_entries', LS_SET='bp_settings';
-const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',accent:'ozean',
+const SET_DEFAULT={colorDots:true,guideLines:true,theme:'auto',accent:'kobalt',
   reminderDays:3,firstDirtyAt:null,snoozeUntil:0,
   thr:{sysY:130,sysR:140,diaY:85,diaR:90}};
 
@@ -1246,15 +1246,37 @@ $('#reminderLater').addEventListener('click',()=>{ settings.snoozeUntil=Date.now
 document.addEventListener('visibilitychange',()=>{ if(!document.hidden) updateReminder(); });
 
 /* ---------- Einstellungen / Menü ---------- */
-/* Akzentfarben: je 5 kuratierte Töne mit eigenem Hell-/Dunkel-Wert (bewusst kühler Blau–
-   Violett–Cyan-Bogen + Neutral, damit sie sich klar von Ampel und Puls abheben). */
-const ACCENT_SETS={
-  ozean:{light:'#2b6cf0',dark:'#5b8cf5'},
-  indigo:{light:'#4f46e5',dark:'#7c84f5'},
-  violett:{light:'#7c3aed',dark:'#9670f0'},
-  petrol:{light:'#0e83a6',dark:'#26a7c9'},
-  graphit:{light:'#4a5566',dark:'#7e8a9e'}
-};
+/* Akzentfarben: pro Hell-/Dunkelmodus eine eigene, kuratierte Liste statt gemeinsamer Töne nur
+   auf-/abgehellt. Grund: --accent trägt an manchen Stellen helle Schrift (braucht dunkle
+   Flächen), ist an anderen selbst die Schrift auf der Oberfläche (braucht Kontrast gegen
+   --surf) – ein Satz für beide Rollen in beiden Modi ging nicht überall gut auf. `ink` ist die
+   Farbe für Schrift/Icon, das AUF der Akzentfläche liegt (--accent-ink); pro Modus dürfen
+   Farben fehlen oder nur dort vorkommen (resolveAccent() fängt eine fehlende Auswahl ab). */
+const ACCENTS_LIGHT=[
+  {key:'azur',     label:'Azur',     c:'#0A6FB4', ink:'#FFFFFF'},
+  {key:'kobalt',   label:'Kobalt',   c:'#1E5FE0', ink:'#FFFFFF'},
+  {key:'iris',     label:'Iris',     c:'#6E3AE0', ink:'#FFFFFF'},
+  {key:'violett',  label:'Violett',  c:'#7C3AED', ink:'#FFFFFF'},
+  {key:'amethyst', label:'Amethyst', c:'#8B2FD6', ink:'#FFFFFF'},
+  {key:'graphit',  label:'Graphit',  c:'#3A4658', ink:'#FFFFFF'}
+];
+const ACCENTS_DARK=[
+  {key:'aqua',     label:'Aqua',     c:'#2DD4BF', ink:'#0E131C'},
+  {key:'himmel',   label:'Himmel',   c:'#38BDF8', ink:'#0E131C'},
+  {key:'azur',     label:'Azur',     c:'#4CA3FF', ink:'#FFFFFF'},
+  {key:'kobalt',   label:'Kobalt',   c:'#6D9BFF', ink:'#FFFFFF'},
+  {key:'amethyst', label:'Amethyst', c:'#A855F7', ink:'#FFFFFF'},
+  {key:'silber',   label:'Silber',   c:'#C2CCDE', ink:'#0E131C'}
+];
+const ACCENT_DEFAULT='kobalt';
+/* Gewählten Akzent für einen Modus auflösen; fehlt der Key dort (z. B. „iris" gibt es nur
+   hell), greift der Standard. settings.accent bleibt dabei unverändert, damit beim
+   Zurückwechseln in den Modus wieder die ursprüngliche Wahl gilt. */
+function resolveAccent(dark){
+  const list=dark?ACCENTS_DARK:ACCENTS_LIGHT;
+  const want=settings.accent||ACCENT_DEFAULT;
+  return list.find(a=>a.key===want) || list.find(a=>a.key===ACCENT_DEFAULT) || list[0];
+}
 /* Effektiver Hell/Dunkel-Zustand: „dark"/„light" fest, sonst der Systemwunsch. */
 function resolveDark(){
   const t=settings.theme;
@@ -1262,11 +1284,13 @@ function resolveDark(){
   if(t==='light') return false;
   return !!(window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
 }
-/* --accent hängt von Akzentwahl UND Hell/Dunkel ab → per JS auf :root setzen. Die ganze App
-   folgt automatisch, da alles über var(--accent) läuft (Alias --primary → --accent). */
+/* --accent UND --accent-ink hängen von Akzentwahl UND Hell/Dunkel ab → per JS auf :root
+   setzen. Die ganze App folgt automatisch, da alles über var(--accent) läuft (Alias
+   --primary → --accent). */
 function applyAccent(){
-  const set=ACCENT_SETS[settings.accent]||ACCENT_SETS.ozean;
-  document.documentElement.style.setProperty('--accent', set[resolveDark()?'dark':'light']);
+  const acc=resolveAccent(resolveDark());
+  document.documentElement.style.setProperty('--accent', acc.c);
+  document.documentElement.style.setProperty('--accent-ink', acc.ink);
 }
 function applyTheme(){
   const t=settings.theme;
@@ -1282,16 +1306,21 @@ function applyThrUI(){
   $('#thrSysY').value=t.sysY; $('#thrDiaY').value=t.diaY;
   $('#thrSysR').value=t.sysR; $('#thrDiaR').value=t.diaR;
 }
-/* Akzent-Auswahl: Swatch-Farben je Hell/Dunkel setzen (der aktive Ring nutzt currentColor)
-   und den gewählten Punkt markieren. */
+/* Akzent-Auswahl: Punkte komplett neu bauen statt nur umzufärben, denn Hell und Dunkel haben
+   jetzt unterschiedliche Farben UND eine unterschiedliche Anzahl eigener Töne (nicht mehr
+   dieselben 5 Keys, nur ab-/aufgehellt). Der aktive Ring nutzt currentColor (daher color=c),
+   das Häkchen bekommt je Punkt sein eigenes ink (auf hellen Tönen wie Aqua/Silber schwarz). */
 function applyAccentSwatches(){
   const dark=resolveDark();
-  $$('#accentPick .acc-sw').forEach(b=>{
-    const set=ACCENT_SETS[b.dataset.accent]||ACCENT_SETS.ozean;
-    const col=set[dark?'dark':'light'];
-    b.style.background=col; b.style.color=col;
-    b.classList.toggle('active',(settings.accent||'ozean')===b.dataset.accent);
-  });
+  const list=dark?ACCENTS_DARK:ACCENTS_LIGHT;
+  const active=resolveAccent(dark).key;
+  $('#accentPick').innerHTML=list.map(a=>
+    '<button type="button" class="acc-sw'+(a.key===active?' active':'')+'" data-accent="'+a.key+'" '+
+    'aria-label="'+escapeHtml(a.label)+'" style="background:'+a.c+';color:'+a.c+'">'+
+    '<svg class="ck" viewBox="0 0 24 24" fill="none" stroke="'+a.ink+'" stroke-width="3" '+
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>'+
+    '</button>'
+  ).join('');
 }
 function applyThemeSeg(){ $$('#themeSeg [data-theme]').forEach(b=>b.classList.toggle('active',b.dataset.theme===settings.theme)); }
 function applySettingsUI(){
@@ -1328,8 +1357,12 @@ $('#setReminderDays').addEventListener('input',e=>{
   settings.reminderDays=v; saveSettings(); updateReminder();
 });
 $$('#themeSeg [data-theme]').forEach(b=>b.addEventListener('click',()=>{ settings.theme=b.dataset.theme; saveSettings(); applyTheme(); applyThemeSeg(); applyAccentSwatches(); if(currentTab==='chart') renderChart(); }));
-// Akzentfarbe wählen: --accent app-weit setzen (applyAccent), Swatches auffrischen, Diagramm (Ø-Linie) nachziehen
-$$('#accentPick .acc-sw').forEach(b=>b.addEventListener('click',()=>{ settings.accent=b.dataset.accent; saveSettings(); applyAccent(); applyAccentSwatches(); if(currentTab==='chart') renderChart(); }));
+// Akzentfarbe wählen: --accent app-weit setzen (applyAccent), Swatches auffrischen, Diagramm (Ø-Linie) nachziehen.
+// Delegiert auf den Container, weil applyAccentSwatches() die Punkte bei jedem Aufruf neu baut.
+$('#accentPick').addEventListener('click',e=>{
+  const b=e.target.closest('.acc-sw'); if(!b) return;
+  settings.accent=b.dataset.accent; saveSettings(); applyAccent(); applyAccentSwatches(); if(currentTab==='chart') renderChart();
+});
 [['thrSysY','sysY'],['thrDiaY','diaY'],['thrSysR','sysR'],['thrDiaR','diaR']].forEach(([id,key])=>{
   $('#'+id).addEventListener('input',e=>{
     const v=parseInt(e.target.value,10);

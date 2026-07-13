@@ -18,7 +18,7 @@
 :root{
   /* Struktur (hell) */
   --bg:#eef1f6; --surf:#ffffff; --surf2:#f2f5f9; --ink:#131a26; --muted:#68717f; --line:#e5e9f0;
-  --accent:#2b6cf0;
+  --accent:#2b6cf0; --accent-ink:#ffffff;
   /* Ampel (hell) – je Kategorie ink/soft/bar */
   --g-ink:#15803d; --g-soft:#e7f6ec; --g-bar:#16a34a;
   --y-ink:#b26a00; --y-soft:#fdf6ea; --y-bar:#e08600;
@@ -33,7 +33,7 @@
   /* Aliasse auf die alten Token-Namen (Übergang bis zum Umbau der Screens) */
   --surface:var(--surf); --surface-2:var(--surf2); --menu-bg:var(--bg);
   --text:var(--ink); --border:var(--line);
-  --primary:var(--accent); --primary-ink:#ffffff;
+  --primary:var(--accent); --primary-ink:var(--accent-ink);
   --cat-g:var(--g-bar); --cat-y:var(--y-bar); --cat-r:var(--r-bar);
   --danger:var(--r-bar);
   --c-sys:var(--r-bar); --c-dia:var(--accent); --c-pulse:var(--pulse-bar);
@@ -42,7 +42,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --bg:#0e131c; --surf:#171e2a; --surf2:#1f2836; --ink:#eef2f8; --muted:#97a1b3; --line:#2b3543;
-    --accent:#5b8cf5;
+    --accent:#5b8cf5; --accent-ink:#ffffff;
     --g-ink:#4ade80; --g-soft:rgba(34,197,94,.15); --g-bar:#22c55e;
     --y-ink:#fbbf24; --y-soft:rgba(234,179,8,.15); --y-bar:#eab308;
     --r-ink:#f87171; --r-soft:rgba(239,68,68,.16); --r-bar:#ef4444;
@@ -52,7 +52,7 @@
 }
 :root[data-theme="dark"]{
   --bg:#0e131c; --surf:#171e2a; --surf2:#1f2836; --ink:#eef2f8; --muted:#97a1b3; --line:#2b3543;
-  --accent:#5b8cf5;
+  --accent:#5b8cf5; --accent-ink:#ffffff;
   --g-ink:#4ade80; --g-soft:rgba(34,197,94,.15); --g-bar:#22c55e;
   --y-ink:#fbbf24; --y-soft:rgba(234,179,8,.15); --y-bar:#eab308;
   --r-ink:#f87171; --r-soft:rgba(239,68,68,.16); --r-bar:#ef4444;
@@ -115,7 +115,7 @@ nav.bottom{
   transition:transform .14s ease;
 }
 .fab:active{transform:translateX(-50%) scale(.91)}
-.fab svg{width:28px;height:28px}
+.fab svg{width:28px;height:28px;stroke:var(--accent-ink)}
 
 /* ---- Dialog ---- */
 dialog{
@@ -147,7 +147,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .dlg-actions.col .btn-fill{width:100%;text-align:center;line-height:1.3}
 .dlg-actions.col .btn-text{text-align:center}
 .btn-text{background:none;border:none;color:var(--primary);padding:10px;font-weight:600}
-.btn-fill{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
+.btn-fill{background:var(--primary);color:var(--accent-ink);border:none;border-radius:10px;padding:11px 18px;font-weight:700}
 /* ---- Bestätigen-Rückfrage (#confirmDlg) ---- */
 .btn-fill-danger{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:11px 18px;font-weight:700}
 .btn-fill:disabled,.btn-fill-danger:disabled{opacity:.4;cursor:default}
@@ -256,7 +256,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .rem-msg{flex:1;min-width:150px;font-size:.9rem}
 .rem-actions{display:flex;gap:8px;margin-left:auto}
 .rem-btn{padding:8px 12px;border:1px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text);font-size:.88rem}
-.rem-btn.primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+.rem-btn.primary{background:var(--primary);color:var(--accent-ink);border-color:var(--primary);font-weight:600}
 
 /* ---- Toast ---- */
 /* Toast: zentrierter Wrapper unten; darin eine wischbare Karte in 3 Kategorien */
@@ -405,7 +405,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .cap-pad{flex:none;background:var(--bg);border-top:1px solid var(--line);padding:8px 10px calc(10px + env(safe-area-inset-bottom))}
 .cap-acc{display:flex;align-items:center;justify-content:space-between;padding:0 4px 8px}
 .cap-note-btn{background:none;border:none;color:var(--accent);font-weight:700;font-size:14px;padding:4px}
-.cap-next{border:none;background:var(--accent);color:#fff;border-radius:12px;padding:10px 22px;font-size:15px;font-weight:800;box-shadow:0 6px 16px -6px rgba(20,30,50,.28);transition:opacity .2s ease}
+.cap-next{border:none;background:var(--accent);color:var(--accent-ink);border-radius:12px;padding:10px 22px;font-size:15px;font-weight:800;box-shadow:0 6px 16px -6px rgba(20,30,50,.28);transition:opacity .2s ease}
 .cap-next:disabled{opacity:.5}
 .cap-keys{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .cap-key{height:46px;border:none;border-radius:10px;background:var(--surf);color:var(--ink);display:grid;place-items:center;font-size:23px;font-weight:600;font-variant-numeric:tabular-nums;box-shadow:0 1px 1.5px rgba(20,30,50,.16);transition:transform .11s ease}
@@ -434,7 +434,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .cap-sheet-grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 4px;flex:none}
 .cap-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:0 2px 2px}
 .cap-sheet-title{font-size:17px;font-weight:800;letter-spacing:-.01em}
-.cap-sheet-apply{width:100%;border:none;background:var(--accent);color:#fff;border-radius:14px;padding:14px;font-size:15px;font-weight:800;box-shadow:0 8px 20px -8px color-mix(in srgb,var(--accent) 60%,transparent)}
+.cap-sheet-apply{width:100%;border:none;background:var(--accent);color:var(--accent-ink);border-radius:14px;padding:14px;font-size:15px;font-weight:800;box-shadow:0 8px 20px -8px color-mix(in srgb,var(--accent) 60%,transparent)}
 .cap-dt-quick{display:flex;gap:8px}
 .cap-dt-quick button{flex:1;padding:9px 0;border-radius:11px;font-size:13px;font-weight:700;border:1.5px solid var(--line);background:var(--surf);color:var(--ink)}
 .cap-dt-quick button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--surf));color:var(--accent)}
@@ -449,7 +449,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .cap-cal-wd span{text-align:center;font-size:10.5px;font-weight:800;color:var(--muted);padding:2px 0}
 .cap-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .cap-cal-grid button{aspect-ratio:1;border:none;background:transparent;color:var(--ink);border-radius:10px;font-size:13.5px;font-weight:600;display:grid;place-items:center}
-.cap-cal-grid button.sel{background:var(--accent);color:#fff;font-weight:800}
+.cap-cal-grid button.sel{background:var(--accent);color:var(--accent-ink);font-weight:800}
 .cap-cal-grid button.today:not(.sel){box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent) 45%,var(--line))}
 .cap-cal-grid button.future{color:color-mix(in srgb,var(--muted) 42%,transparent);cursor:default}
 .cap-time{padding:12px;display:flex;align-items:center;justify-content:center;gap:8px}
@@ -530,7 +530,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .vh-pill{flex:1;position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;border:none;background:none;color:var(--muted);font-size:12px;font-weight:700;padding:8px 10px;border-radius:999px;font-family:inherit;cursor:pointer;transition:color .25s ease}
 .vh-pill svg{width:13px;height:13px}
 .vh-pill-cal{flex:none}
-.vh-pill.active{color:#fff}
+.vh-pill.active{color:var(--accent-ink)}
 
 /* ---- Zeitraum-Bottom-Sheet ---- */
 .sheet{position:fixed;inset:0;z-index:45}
@@ -591,7 +591,7 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .det-nav svg{width:22px;height:22px}
 .det-del{background:var(--r-soft);color:var(--r-ink)}
 .det-del svg{width:20px;height:20px}
-.det-primary{flex:1;height:50px;border:none;border-radius:15px;background:var(--accent);color:#fff;font-family:inherit;font-weight:800;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 10px 22px -10px color-mix(in srgb,var(--accent) 65%,transparent);transition:transform .12s ease,background .15s ease}
+.det-primary{flex:1;height:50px;border:none;border-radius:15px;background:var(--accent);color:var(--accent-ink);font-family:inherit;font-weight:800;font-size:15px;display:inline-flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 10px 22px -10px color-mix(in srgb,var(--accent) 65%,transparent);transition:transform .12s ease,background .15s ease}
 .det-primary svg{width:19px;height:19px}
 .det-nav:active{transform:scale(.93)}
 .det-del:active{transform:scale(.93)}
@@ -656,11 +656,11 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .dg-pulse.active{background:var(--pulse-soft);color:var(--pulse-ink)}
 .dg-cal{flex:none;width:40px;height:38px;display:grid;place-items:center;border:none;border-radius:999px;background:var(--surf2);color:var(--muted);cursor:pointer;transition:background-color .2s ease,color .2s ease}
 .dg-cal svg{width:16px;height:16px}
-.dg-cal.active{background:var(--accent);color:#fff}
+.dg-cal.active{background:var(--accent);color:var(--accent-ink)}
 .dg-pop{position:absolute;right:16px;bottom:calc(100% + 6px);background:var(--surf);border-radius:16px;padding:7px;display:flex;flex-direction:column;gap:6px;box-shadow:0 14px 34px -10px rgba(20,30,50,.4);border:1px solid var(--line);width:160px;z-index:6;animation:fadein .18s ease}
 .dg-pop[hidden]{display:none}
 .dg-pop button{padding:9px 13px;border:none;border-radius:11px;background:var(--surf2);color:var(--ink);font-family:inherit;font-size:12.5px;font-weight:700;text-align:left;cursor:pointer}
-.dg-pop button.active{background:var(--accent);color:#fff}
+.dg-pop button.active{background:var(--accent);color:var(--accent-ink)}
 
 /* SVG-Animationen der Grafik: Linie „zeichnen", Punkte „aufpoppen" (Klassen via JS, nur ohne reduced-motion) */
 .dg-line{stroke-dasharray:1200;stroke-dashoffset:1200;animation:drawLine .8s ease forwards}
