@@ -82,9 +82,37 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     (`guideLines`)** sind aus der UI verschwunden (Verlauf färbt immer pro Wert, Diagramm nutzt immer
     Farbpunkte); die Schlüssel bleiben in `settings`/Backup (Rückwärtskompatibilität), `updateThrEnabled`
     entfiel. Toter Code aus dem Umbau wurde entfernt (u. a. `getSorted`, alte Tabellen-/Menü-CSS).
-- **Code-Struktur:** `index.html` (~400 Z.), `styles.css` (~665 Z.) und `app.js` (~1360 Z.); eingebunden
+- **Arzt-Report (Druck/PDF)** (erledigt 2026-07-14, aus dem „Claude-Design"-Entwurf umgesetzt):
+  ein aufbereiteter, **druckbarer** A4-Bericht für den Arztbesuch (`window.print`). **Reine
+  Datenaufbereitung, keine Diagnose/Bewertung.** Erreichbar über **zwei Einstiege**: Icon im
+  Diagramm-Kopf (`#rpOpenChart`) **und** Menü → Daten (`#mReport`), beide rufen `openReport()`.
+  - **Report-Menü** (eigener Vollbild-Screen `#tab-report`, geöffnet per `navPush('report')`):
+    Zeitraum-Pillen **30/90/Eigener** (+ Von–Bis-Datumsfelder), **Report-Farbe** (5 Swatches
+    Kobalt/Indigo/Petrol/Violett/Graphit), Schalter **Namensfeld/Puls einbeziehen/Anhangseite**,
+    **verkleinerte Live-Vorschau** der A4-Seite(n) und **Drucken**. Das Menü-Chrome folgt dem
+    App-Theme; die A4-Seiten sind **immer hell** (Druck auf Weiß).
+  - **A4-Seite 1 „Kompakt"** (`rpPage`): Kopf + Meta-Kachel (Zeitraum/Messungen, optional
+    Namens-/Geburtsdatumsfeld), **Gesamt-Durchschnitt gesplittet** (Sys/Dia + Ampel-Chip · Puls),
+    **Tageszeit** (morgens/tagsüber/abends, „—" wenn leer), **Ampel-Verteilung als Ring/Donut** +
+    „% über Ziel" neben **Höchst/Tiefst**, **Verlaufs-Diagramm**, **Wertetabelle** (Sys = gefüllte
+    Scheibe, Dia = hohler Ring), **Fußnote** (angewendete Grenzwerte + Tageszeit-Definition +
+    Haftungshinweis). **Anhang „Seite 2" (Querformat, `rpLandscape`)** nur auf Wunsch: großes
+    Detail-Diagramm mit **Wert + Datum je Messpunkt**.
+  - **Technik:** `reportData(from,to)` bündelt alle Kennzahlen aus **vorhandener** Logik
+    (`meanKey`/`category`/`catValFor`/`todOf`/`roundTo100`, Grenzwerte `settings.thr`); eigener
+    Bereichsfilter, **nicht** das geteilte `filters`-Objekt. Feste helle Palette `RP` (Ausdruck
+    theme-unabhängig hell); **eigene** Grafik `rpChart` (zeit-proportionale X-Achse, `detailed`-Modus
+    für Seite 2) – das App-Diagramm `buildDiagChart` bleibt unberührt. Der Report-Zustand
+    (`reportState`) ist **bewusst flüchtig**: bei jedem Öffnen auf Standard (Kobalt, 30 Tage,
+    Puls+Namensfeld an, Anhang aus), **nichts** landet in `settings`/Backup. **Druck:** `@media print`
+    zeigt nur den Container `#reportPrint` (naturgroße Seiten) über **benannte `@page`** (portrait +
+    landscape für den Anhang), `print-color-adjust:exact`, `break-inside`-Schutz gegen unschöne
+    Umbrüche. **Bewusst (noch) nicht:** ein **Teilen-Knopf** (build-frei nicht sauber; Weg =
+    „Drucken → Als PDF speichern → teilen") und ein **zweiter Grenzwerte-Editor** im Report-Menü
+    (der Report liest `settings.thr`; geändert wird unter Menü → Anzeige → „Zielbereich").
+- **Code-Struktur:** `index.html` (~415 Z.), `styles.css` (~755 Z.) und `app.js` (~1815 Z.); eingebunden
   per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
-  offline (Cache **`blutdruck-v17`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  offline (Cache **`blutdruck-v21`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
   keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
@@ -192,6 +220,8 @@ Features", markiert mit *(neu geparkt 2026-07-12)*.
 Nachtrag 2026-07-13: Puls-Linien-Animation und Akzentfarben pro Modus umgesetzt (siehe „Aktueller
 Stand") und unten entfernt; die übrigen drei aus dem 2026-07-12-Batch (Medikamenten-Erinnerung,
 Einnahme-Tracking, Anleitungs-Textkorrektur) bleiben geparkt.
+Nachtrag 2026-07-14: Arzt-Report (Druck/PDF) umgesetzt (siehe „Aktueller Stand") und aus „2. Weitere
+Features" entfernt.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
 ### 1. UI/UX-Modernisierung — **erledigt (Stufen 1–6, 2026-07-11)**
@@ -210,10 +240,8 @@ sich jetzt **denselben Zeitraum** (`applyVerlaufRange` + `filters.from/to`).
   müsste dann neu angelegt werden.
 
 ### 2. Weitere Features
-- **Arzt-Report (Druck/PDF)** — mittel–groß · problemlos. Aufbereiteter, druck-/teilbarer Bericht:
-  Mittelwerte (idealerweise morgens/abends getrennt), Min/Max, Anteil über Zielwert, Verlaufsgrafik,
-  Werteliste – via `window.print` + Druck-CSS (build-frei). Reine Datenaufbereitung, **keine
-  Diagnose/Bewertung**. Geht über den CSV-Export (Rohdaten) hinaus.
+- **Arzt-Report (Druck/PDF)** — **erledigt 2026-07-14** (siehe „Aktueller Stand"). Aufbereiteter,
+  druckbarer A4-Bericht (Kompakt-Layout + Querformat-Anhang) via `window.print` + `@media print`.
 - **Auto-Wiederherstellung** — mittel · mit Hürde. Beim Start, wenn App leer **und** Datei verknüpft
   (`idbGetMeta('backupHandle')`): Berechtigung prüfen → bei `granted` lesen + `mergeEntriesFromData`.
   *Hürde:* Datei-Berechtigung erlischt oft nach Browser-Neustart und braucht eine Nutzer-Geste →

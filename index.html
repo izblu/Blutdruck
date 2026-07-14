@@ -175,7 +175,8 @@
         <div class="dg-title">Diagramm</div>
         <div class="dg-sub" id="dgSub">Blutdruck</div>
       </div>
-      <!-- Export-Symbol (Design) bewusst weggelassen – gehört zum geparkten Arzt-Report -->
+      <button class="dg-report" id="rpOpenChart" type="button" aria-label="Arzt-Report">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></button>
     </div>
     <!-- Karte (Wert/Status + SVG-Grafik + Legende) · Statistik · Kontext füllt renderChart() -->
     <div class="dg-body" id="dgBody"></div>
@@ -196,6 +197,20 @@
         <button data-r="90" type="button">90 Tage</button>
         <button data-r="custom" type="button">Eigener Zeitraum</button>
       </div>
+    </div>
+  </section>
+  <!-- ============ ARZT-REPORT (Druck/PDF) – eigener Vollbild-Screen ============ -->
+  <section class="tab screen" id="tab-report">
+    <div class="rp-topbar">
+      <div class="rp-h"><div class="rp-h-t">Arzt-Report</div><div class="rp-h-s">Bericht für den Arztbesuch</div></div>
+    </div>
+    <!-- Zeitraum · Report-Farbe · Optionen · Live-Vorschau füllt renderReport() -->
+    <div class="rp-body" id="rpBody"></div>
+    <div class="rp-actions">
+      <button class="rp-sq" data-rp="back" type="button" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="rp-print" data-rp="print" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 6 3 18 3 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Drucken</button>
     </div>
   </section>
 </main>
@@ -286,6 +301,11 @@
         </button>
         <p class="m-note" id="csvNote"></p>
       </div>
+      <button class="m-row" id="mReport" type="button">
+        <span class="m-row-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
+        <span class="m-row-t">Arzt-Report (Drucken/PDF)</span>
+        <svg class="m-row-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
       <button class="m-danger" id="mClearAll" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg>
         <span>Alle Daten löschen</span>
@@ -387,6 +407,9 @@
 
 <input type="file" id="importFile" accept="application/json,.json,text/plain,.txt" style="display:none">
 <div id="toast" role="status" aria-live="polite"></div>
+
+<!-- Druck-Container: hält die A4-Seite(n) in Naturgröße; nur im Ausdruck sichtbar (@media print). -->
+<div id="reportPrint" aria-hidden="true"></div>
 
 <script src="./app.js" defer></script>
 </body>

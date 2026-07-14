@@ -1418,6 +1418,279 @@ $('#accentPick').addEventListener('click',e=>{
 });
 $('#thrReset').addEventListener('click',()=>{ settings.thr={...SET_DEFAULT.thr}; saveSettings(); applyThrUI(); renderTable(); if(currentTab==='chart') renderChart(); toast('Standardwerte wiederhergestellt','notice'); });
 
+/* ==================== ARZT-REPORT (Druck/PDF) ====================
+   Aufbereiteter, druckbarer Bericht für den Arztbesuch (Kompakt-Layout + Querformat-Anhang),
+   umgesetzt aus dem Claude-Design-Entwurf. REINE Datenaufbereitung – keine Diagnose/Bewertung.
+   Nutzt die vorhandene Logik (meanKey, category, catValFor, todOf, roundTo100, settings.thr).
+   Der Report ist IMMER hell (Druck auf Weiß): eigene feste Palette RP statt der theme-abhängigen
+   CSS-Variablen; das App-Diagramm (buildDiagChart) bleibt unberührt – der Report bringt seine
+   eigene Grafik mit. Der Zustand (reportState) ist BEWUSST flüchtig: bei jedem Öffnen auf Standard
+   (Kobalt, 30 Tage, Puls+Namensfeld an, Anhang aus). Nichts davon landet in settings/Backup. */
+const RP={
+  ink:'#131a26', muted:'#68717f', faint:'#9aa3b2', surf:'#ffffff', surf2:'#f4f6fa', line:'#e5e9f0',
+  amp:{ g:{soft:'#e7f6ec',bar:'#16a34a',ink:'#15803d',label:'Im Ziel'},
+        y:{soft:'#fdf6ea',bar:'#e0850b',ink:'#b26a00',label:'Erhöht'},
+        r:{soft:'#fdeaea',bar:'#dc2626',ink:'#c0261f',label:'Zu hoch'},
+        n:{soft:'#f4f6fa',bar:'#c2cad6',ink:'#68717f',label:'—'} },
+  pulse:{bar:'#e11d68',ink:'#be185d',soft:'#fdeaf1'},
+  acc:{Kobalt:'#1E5FE0',Indigo:'#3B3F9E',Petrol:'#0E7C93',Violett:'#7048C4',Graphit:'#3C4A5E'}
+};
+const RP_ACC_ORDER=['Kobalt','Indigo','Petrol','Violett','Graphit'];
+let reportState={accent:'Kobalt',range:'30',from:null,to:null,puls:true,namen:true,anhang:false};
+const rpAcc=()=>RP.acc[reportState.accent]||RP.acc.Kobalt;
+
+const rpIso=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+function rpParseIso(s){ if(!s) return null; const p=s.split('-').map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function rpPeriodLabel(from,to){
+  const full={day:'numeric',month:'long',year:'numeric'}, part={day:'numeric',month:'long'};
+  if(from.getFullYear()===to.getFullYear())
+    return from.toLocaleDateString('de-DE',part)+' – '+to.toLocaleDateString('de-DE',full);
+  return from.toLocaleDateString('de-DE',full)+' – '+to.toLocaleDateString('de-DE',full);
+}
+/* Aktuelle Bereichsgrenzen (EIGEN – nicht das geteilte filters-Objekt). Standard-Fenster ab heute. */
+function rpRangeDates(){
+  const now=new Date(), to=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  if(reportState.range==='custom'){
+    const f=rpParseIso(reportState.from)||new Date(to.getFullYear(),to.getMonth(),to.getDate()-30);
+    const t=rpParseIso(reportState.to)||to;
+    return f<=t ? {from:f,to:t} : {from:t,to:f};
+  }
+  const days=reportState.range==='90'?90:30;
+  return {from:new Date(to.getFullYear(),to.getMonth(),to.getDate()-days),to:to};
+}
+/* Kennzahlen bündeln. category()/catValFor() beziehen sich auf settings.thr → Ampel & Fußnote stimmen überein. */
+function reportData(from,to){
+  const lo=new Date(from.getFullYear(),from.getMonth(),from.getDate()).getTime();
+  const hi=new Date(to.getFullYear(),to.getMonth(),to.getDate(),23,59,59,999).getTime();
+  const list=entries.filter(e=>{ const t=new Date(e.ts).getTime(); return t>=lo&&t<=hi; });
+  const asc=list.slice().sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  const desc=list.slice().sort((a,b)=>new Date(b.ts)-new Date(a.ts));
+  const avgSys=meanKey(list,'sys'), avgDia=meanKey(list,'dia'), avgPul=meanKey(list,'pulse');
+  const mm=k=>({min:list.length?Math.min(...list.map(m=>m[k])):0, max:list.length?Math.max(...list.map(m=>m[k])):0});
+  const win=key=>{ const a=list.filter(m=>todOf(new Date(m.ts).getHours())===key);
+    const s=meanKey(a,'sys'), d=meanKey(a,'dia'), p=meanKey(a,'pulse');
+    return {n:a.length, sys:s, dia:d, pul:p, cat:a.length?category({sys:s,dia:d}):'n'}; };
+  let g=0,y=0,r=0;
+  list.forEach(m=>{ const c=category(m); if(c==='r')r++; else if(c==='y')y++; else g++; });
+  const tot=list.length||1, pc=roundTo100([g/tot*100,y/tot*100,r/tot*100]);
+  return {
+    list, asc, desc, count:list.length,
+    avgSys, avgDia, avgPul, catAvg:list.length?category({sys:avgSys,dia:avgDia}):'n',
+    tod:{morgens:win('morgens'),tags:win('tagsüber'),abends:win('abends')},
+    minmax:{sys:mm('sys'),dia:mm('dia'),pul:mm('pulse')},
+    dist:{g,y,r}, pct:{g:pc[0],y:pc[1],r:pc[2]}, above:pc[1]+pc[2],
+    period:rpPeriodLabel(from,to),
+    created:new Date().toLocaleDateString('de-DE',{day:'numeric',month:'long',year:'numeric'})
+  };
+}
+
+/* ---- kleine Bausteine (feste Palette) ---- */
+const rpMark=(sz,color)=>`<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none"><polyline points="2.5,12.5 7.5,12.5 10.3,4 13.3,20 15.9,10.5 18,13.3 21.5,13.3" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+function rpChip(cat,lg){ const c=RP.amp[cat];
+  return `<span style="display:inline-flex;align-items:center;gap:6px;background:${c.soft};color:${c.ink};border-radius:999px;padding:${lg?'5px 13px':'3px 9px'};font-size:${lg?13:11}px;font-weight:800;white-space:nowrap"><span style="width:${lg?8:6}px;height:${lg?8:6}px;border-radius:50%;background:${c.bar}"></span>${c.label}</span>`; }
+function rpLegend(showPuls){
+  const item=(node,txt)=>`<span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:${RP.muted}">${node}${txt}</span>`;
+  const disc=`<span style="width:10px;height:10px;border-radius:50%;background:${RP.ink}"></span>`;
+  const ring=`<span style="width:10px;height:10px;border-radius:50%;border:2.4px solid ${RP.ink};box-sizing:border-box"></span>`;
+  const dash=`<span style="width:16px;height:0;border-top:2px dashed ${RP.muted}"></span>`;
+  let items=item(disc,'Systolisch')+item(ring,'Diastolisch')+item(dash,'Ø Mittel');
+  if(showPuls) items+=item(`<span style="width:10px;height:10px;border-radius:50%;background:${RP.pulse.bar}"></span>`,'Puls');
+  return `<div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:8px">${items}</div>`;
+}
+function rpDonut(rep,size,sw){
+  const r=42, C=2*Math.PI*r, strokeW=sw||20;
+  const segs=[['g',rep.pct.g],['y',rep.pct.y],['r',rep.pct.r]].filter(s=>s[1]>0);
+  let off=0, rings='';
+  segs.forEach(s=>{ const len=s[1]/100*C;
+    rings+=`<circle cx="50" cy="50" r="${r}" fill="none" stroke="${RP.amp[s[0]].bar}" stroke-width="${strokeW}" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" stroke-linecap="butt"/>`;
+    off+=len; });
+  const svg=`<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="transform:rotate(-90deg);display:block"><circle cx="50" cy="50" r="${r}" fill="none" stroke="${RP.line}" stroke-width="${strokeW}"/>${rings}</svg>`;
+  const center=`<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:${Math.round(size*0.27)}px;font-weight:800;color:${RP.amp.g.ink}">${rep.pct.g}%</span><span style="font-size:${Math.max(8,Math.round(size*0.1))}px;font-weight:800;letter-spacing:.08em;color:${RP.muted};margin-top:2px">IM ZIEL</span></div>`;
+  return `<div style="position:relative;width:${size}px;height:${size}px;flex:none">${svg}${center}</div>`;
+}
+function rpFoot(rep,pageLabel,opt){
+  const t=settings.thr;
+  const tod=(opt&&opt.noTod)?'':`<div><b style="color:${RP.ink}">Tageszeit: </b>morgens vor 11 Uhr · tagsüber 11–17 Uhr · abends ab 17 Uhr.</div>`;
+  return `<div style="margin-top:auto;padding-top:18px;border-top:1px solid ${RP.line};font-size:10.5px;line-height:1.5;color:${RP.muted};display:flex;justify-content:space-between;gap:16px"><div style="max-width:592px;display:flex;flex-direction:column;gap:4px"><div><b style="color:${RP.ink}">Angewendete Grenzwerte: </b>erhöht ab ${t.sysY}/${t.diaY}, zu hoch ab ${t.sysR}/${t.diaR} mmHg.</div>${tod}<div>Rein beschreibende Auswertung der erfassten Werte — keine ärztliche Bewertung oder Diagnose.</div></div><div style="text-align:right;white-space:nowrap">Blutdruck-App<br>${pageLabel||'Seite 1'}</div></div>`;
+}
+
+/* ---- druck-optimierte Grafik (zeit-proportionale X-Achse; detailed = Wert je Punkt, Seite 2) ---- */
+function rpChart(rep,W,showPuls,acc,detailed){
+  const list=rep.asc, n=list.length;
+  if(!n) return '';
+  const padL=30, padR=42, top=detailed?22:16;
+  const bpBot=detailed?(showPuls?430:520):(showPuls?188:214);
+  const pulTop=detailed?476:226, pulBot=detailed?560:260;
+  const axisY=showPuls?pulBot:bpBot, dateY=axisY+19, H=dateY+6;
+  let lo=Infinity, hi=-Infinity;
+  list.forEach(m=>{ lo=Math.min(lo,m.sys,m.dia); hi=Math.max(hi,m.sys,m.dia); });
+  lo=Math.floor((lo-6)/10)*10; hi=Math.ceil((hi+6)/10)*10;
+  const span=(hi-lo)||1;
+  const yb=v=>+(bpBot-(v-lo)/span*(bpBot-top)).toFixed(1);
+  const tvs=list.map(m=>new Date(m.ts).getTime());
+  const tlo=Math.min(...tvs), thi=Math.max(...tvs), tspan=(thi-tlo)||1;
+  const xs=tvs.map(t=> n===1 ? +((padL+(W-padR))/2).toFixed(1) : +(padL+(t-tlo)/tspan*(W-padL-padR)).toFixed(1));
+  const catBar=(k,v)=>RP.amp[catValFor(k,v)].bar, catInk=(k,v)=>RP.amp[catValFor(k,v)].ink;
+  let s='';
+  const gs=detailed?10:20;
+  for(let t=Math.ceil(lo/gs)*gs; t<=hi; t+=gs){
+    s+=`<line x1="${padL}" y1="${yb(t)}" x2="${W-padR}" y2="${yb(t)}" stroke="${RP.ink}" stroke-opacity=".07" stroke-width="1"/>`;
+    s+=`<text x="2" y="${yb(t)+3.4}" font-size="9" font-weight="700" fill="${RP.faint}">${t}</text>`;
+  }
+  ['sys','dia'].forEach(k=>{ s+=`<polyline points="${list.map((m,i)=>xs[i]+','+yb(m[k])).join(' ')}" fill="none" stroke="#c7d0dd" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`; });
+  [['sys',rep.avgSys],['dia',rep.avgDia]].forEach(p=>{
+    s+=`<line x1="${padL}" y1="${yb(p[1])}" x2="${W-padR}" y2="${yb(p[1])}" stroke="${acc}" stroke-width="1.4" stroke-dasharray="5 4" opacity=".9"/>`;
+    s+=`<text x="${W-padR+4}" y="${yb(p[1])+3.4}" font-size="9.5" font-weight="800" fill="${acc}">Ø ${p[1]}</text>`;
+  });
+  list.forEach((m,i)=>{ s+=`<circle cx="${xs[i]}" cy="${yb(m.dia)}" r="4.4" fill="#fff" stroke="${catBar('dia',m.dia)}" stroke-width="2.4"/>`; });
+  list.forEach((m,i)=>{ s+=`<circle cx="${xs[i]}" cy="${yb(m.sys)}" r="4.6" fill="${catBar('sys',m.sys)}" stroke="#fff" stroke-width="1.3"/>`; });
+  if(detailed){ list.forEach((m,i)=>{
+    s+=`<text x="${xs[i]}" y="${yb(m.sys)-9}" font-size="9" font-weight="800" fill="${catInk('sys',m.sys)}" text-anchor="middle">${m.sys}</text>`;
+    s+=`<text x="${xs[i]}" y="${yb(m.dia)+16}" font-size="9" font-weight="800" fill="${catInk('dia',m.dia)}" text-anchor="middle">${m.dia}</text>`;
+  }); }
+  if(showPuls){
+    const pv=list.map(m=>m.pulse), pmn=Math.min(...pv), pmx=Math.max(...pv), pmin=pmn-4, pmax=pmx+4;
+    const yp=v=>+(pulBot-(v-pmin)/((pmax-pmin)||1)*(pulBot-pulTop)).toFixed(1);
+    s+=`<line x1="${padL}" y1="${pulTop-10}" x2="${W-padR}" y2="${pulTop-10}" stroke="${RP.line}" stroke-width="1"/>`;
+    s+=`<polyline points="${list.map((m,i)=>xs[i]+','+yp(m.pulse)).join(' ')}" fill="none" stroke="${RP.pulse.bar}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;
+    list.forEach((m,i)=>{ s+=`<circle cx="${xs[i]}" cy="${yp(m.pulse)}" r="2.7" fill="${RP.pulse.bar}" stroke="#fff" stroke-width="1"/>`; });
+    s+=`<text x="2" y="${pulTop-14}" font-size="9" font-weight="800" fill="${RP.pulse.ink}" letter-spacing=".08em">PULS</text>`;
+    s+=`<text x="${W-padR+4}" y="${yp(pmx)+3}" font-size="9" font-weight="700" fill="${RP.pulse.ink}">${pmx}</text>`;
+    s+=`<text x="${W-padR+4}" y="${yp(pmn)+3}" font-size="9" font-weight="700" fill="${RP.pulse.ink}">${pmn}</text>`;
+  }
+  s+=`<line x1="${padL}" y1="${axisY+6}" x2="${W-padR}" y2="${axisY+6}" stroke="${RP.line}" stroke-width="1"/>`;
+  const minGap=detailed?52:56, labelIdx=[]; let lastLX=-999;
+  for(let i=0;i<n;i++){ if(xs[i]-lastLX>=minGap){ labelIdx.push(i); lastLX=xs[i]; } }
+  if(labelIdx[labelIdx.length-1]!==n-1){ if(xs[n-1]-xs[labelIdx[labelIdx.length-1]]<minGap*0.55) labelIdx.pop(); labelIdx.push(n-1); }
+  const labelSet={}; labelIdx.forEach(i=>labelSet[i]=true);
+  for(let i=0;i<n;i++){ const isL=labelSet[i];
+    s+=`<line x1="${xs[i]}" y1="${axisY+6}" x2="${xs[i]}" y2="${axisY+(isL?12:9)}" stroke="${isL?RP.muted:RP.faint}" stroke-opacity="${isL?.85:.5}" stroke-width="${isL?1.4:1}"/>`;
+  }
+  labelIdx.forEach(i=>{ const d=new Date(list[i].ts), anchor=i===0?'start':(i===n-1?'end':'middle');
+    s+=`<text x="${xs[i]}" y="${dateY}" font-size="9.5" font-weight="700" fill="${RP.muted}" text-anchor="${anchor}">${pad2(d.getDate())}.${pad2(d.getMonth()+1)}.</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${s}</svg>`;
+}
+/* ---- Wertetabelle (Sys = gefüllte Scheibe, Dia = hohler Ring – gleiche Konvention wie im Diagramm) ---- */
+function rpTable(rep,opt){
+  opt=opt||{}; const puls=reportState.puls;
+  const cols=puls?'1fr 46px 62px 62px 46px 1.7fr':'1fr 46px 62px 62px 1.7fr';
+  const dot=(cat,filled)=>{ const c=RP.amp[cat].bar; return `<span style="width:9px;height:9px;border-radius:50%;flex:none;box-sizing:border-box;background:${filled?c:'#fff'};border:${filled?'1px solid '+c:'2px solid '+c}"></span>`; };
+  const valCell=(v,cat,filled)=>`<div style="display:flex;align-items:center;justify-content:flex-end;gap:6px">${dot(cat,filled)}<span style="font-size:13.5px;font-weight:800;color:${RP.amp[cat].ink}">${v}</span></div>`;
+  const hc=(t,r)=>`<div style="font-size:9.5px;font-weight:800;letter-spacing:.06em${r?';text-align:right':''}">${t}</div>`;
+  const head=`<div style="display:grid;grid-template-columns:${cols};gap:10px;align-items:center;padding:0 12px 8px;color:${RP.muted}">${hc('DATUM')}${hc('ZEIT')}${hc('SYS',1)}${hc('DIA',1)}${puls?hc('PULS',1):''}${hc('NOTIZ')}</div>`;
+  const WD=['So','Mo','Di','Mi','Do','Fr','Sa'];
+  let rows='';
+  rep.desc.forEach((m,i)=>{
+    const d=new Date(m.ts), dl=WD[d.getDay()]+' '+pad2(d.getDate())+'.'+pad2(d.getMonth()+1)+'.';
+    rows+=`<div class="rp-trow" style="display:grid;grid-template-columns:${cols};gap:10px;align-items:center;padding:8px 12px;border-top:1px solid ${RP.line}${opt.zebra&&i%2===1?';background:'+RP.surf2:''}">`
+      +`<div style="font-size:12px;font-weight:700;color:${RP.ink}">${dl}</div>`
+      +`<div style="font-size:11.5px;font-weight:600;color:${RP.muted}">${fmtTime(m.ts)}</div>`
+      +valCell(m.sys,catValFor('sys',m.sys),true)
+      +valCell(m.dia,catValFor('dia',m.dia),false)
+      +(puls?`<div style="text-align:right;font-size:12.5px;font-weight:700;color:${RP.pulse.ink}">${m.pulse}</div>`:'')
+      +`<div style="font-size:11px;font-weight:500;color:${RP.muted};line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.note?escapeHtml(m.note):'—'}</div></div>`;
+  });
+  return head+rows;
+}
+
+/* ---- A4-Seite 1: Kompakt-Layout (Gesamt-Durchschnitt gesplittet) ---- */
+function rpPage(rep){
+  const acc=rpAcc(), puls=reportState.puls, namen=reportState.namen;
+  const tile=(inner,extra='')=>`<div class="rp-blk" style="background:${RP.surf2};border-radius:16px;padding:13px 15px${extra}">${inner}</div>`;
+  const mini=t=>`<div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:${RP.muted};margin-bottom:9px">${t}</div>`;
+  const field=(lab,val,blank)=>`<div style="display:flex;flex-direction:column;gap:3px;min-width:0"><div style="font-size:9.5px;font-weight:800;letter-spacing:.09em;color:${RP.muted}">${lab}</div>${blank?`<div style="height:16px;border-bottom:1.5px dotted #c2cad6"></div>`:`<div style="font-size:13px;font-weight:700;color:${RP.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${val}</div>`}</div>`;
+  const metaCols=namen?'1.3fr 1fr 1.2fr 1fr':'1fr 1fr';
+  const header=`<div><div style="display:flex;align-items:center;gap:11px;margin-bottom:13px"><div style="width:34px;height:34px;border-radius:9px;background:${acc};display:grid;place-items:center;flex:none">${rpMark(20,'#fff')}</div><div style="flex:1"><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1">Blutdruck-Bericht</div><div style="font-size:11.5px;font-weight:600;color:${RP.muted};margin-top:2px">Auswertung für den Arztbesuch</div></div><div style="font-size:11px;font-weight:700;color:${RP.muted};text-align:right">Erstellt<br><span style="color:${RP.ink};font-weight:800">${rep.created}</span></div></div>`
+    +tile(`<div style="display:grid;grid-template-columns:${metaCols};gap:16px">${field('ZEITRAUM',rep.period)}${field('MESSUNGEN',rep.count+' Messungen')}${namen?field('NAME','',true):''}${namen?field('GEBURTSDATUM','',true):''}</div>`)+`</div>`;
+
+  if(!rep.count){
+    const notice=`<div style="background:${RP.surf2};border-radius:16px;padding:44px 24px;text-align:center;color:${RP.muted};font-size:14px;font-weight:600">Für den gewählten Zeitraum liegen keine Messungen vor.</div>`;
+    return `<div class="rp-page" style="width:794px;min-height:1123px;background:#fff;color:${RP.ink};display:flex;flex-direction:column;padding:38px 40px 34px"><div style="display:flex;flex-direction:column;gap:13px;flex:1">${header}${notice}</div>${rpFoot(rep)}</div>`;
+  }
+
+  const stat=(v,lab,col,last)=>`<div style="flex:1;text-align:center;padding:2px 4px${last?'':';border-right:1px solid '+RP.line}"><div style="font-size:30px;font-weight:800;color:${col};letter-spacing:-.02em;line-height:1">${v}</div><div style="font-size:9.5px;font-weight:800;letter-spacing:.07em;color:${RP.muted};margin-top:6px">${lab}</div></div>`;
+  const sysdiaTile=tile(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">${mini('DURCHSCHNITT SYS / DIA')}${rpChip(rep.catAvg,true)}</div><div style="display:flex;align-items:stretch">${stat(rep.avgSys,'Ø SYSTOLISCH',RP.amp[catValFor('sys',rep.avgSys)].ink)}${stat(rep.avgDia,'Ø DIASTOLISCH',RP.amp[catValFor('dia',rep.avgDia)].ink,true)}</div>`,';flex:2');
+  const pulsTile=tile(`<div style="margin-bottom:12px">${mini('DURCHSCHNITT PULS')}</div><div style="display:flex;align-items:stretch">${stat(rep.avgPul,'Ø PULS · BPM',RP.pulse.ink,true)}</div>`,';flex:1');
+  const gesamt=`<div class="rp-blk" style="display:flex;gap:13px;align-items:stretch">${sysdiaTile}${puls?pulsTile:''}</div>`;
+
+  const todTile=(name,w)=>`<div style="flex:1;background:${RP.surf};border:1px solid ${RP.line};border-radius:12px;padding:11px 12px"><div style="font-size:11px;font-weight:800;color:${RP.ink};margin-bottom:6px">${name}</div>${w.n===0?`<div style="font-size:22px;font-weight:800;color:#c2cad6">—</div>`:`<div><div style="display:flex;align-items:baseline;gap:3px"><span style="font-size:22px;font-weight:800;color:${RP.amp[catValFor('sys',w.sys)].ink}">${w.sys}</span><span style="font-size:15px;color:#c2cad6;font-weight:500">/</span><span style="font-size:22px;font-weight:800;color:${RP.amp[catValFor('dia',w.dia)].ink}">${w.dia}</span></div><div style="font-size:10.5px;font-weight:600;color:${RP.muted};margin-top:4px">${puls?'Puls '+w.pul+' · ':''}${w.n} Messung${w.n===1?'':'en'}</div></div>`}</div>`;
+  const tageszeit=tile(mini('DURCHSCHNITT NACH TAGESZEIT')+`<div style="display:flex;gap:9px">${todTile('Morgens',rep.tod.morgens)}${todTile('Tagsüber',rep.tod.tags)}${todTile('Abends',rep.tod.abends)}</div>`);
+
+  const legRow=(cat,cnt,p)=>`<div style="display:flex;align-items:center;gap:8px;padding:3px 0"><span style="width:10px;height:10px;border-radius:3px;background:${RP.amp[cat].bar};flex:none"></span><span style="font-size:12px;font-weight:700;color:${RP.ink}">${RP.amp[cat].label}</span><span style="margin-left:auto;font-size:12px;font-weight:700;color:${RP.muted}"><b style="color:${RP.ink}">${cnt}</b> · ${p}%</span></div>`;
+  const verteilung=tile(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">${mini('AMPEL-VERTEILUNG')}<span style="font-size:10.5px;font-weight:700;color:${RP.muted}">aus ${rep.count} Messungen</span></div><div style="display:flex;align-items:center;gap:16px">${rpDonut(rep,104,17)}<div style="flex:1">${legRow('g',rep.dist.g,rep.pct.g)}${legRow('y',rep.dist.y,rep.pct.y)}${legRow('r',rep.dist.r,rep.pct.r)}</div></div><div style="margin-top:12px;padding-top:10px;border-top:1px solid ${RP.line};display:flex;align-items:baseline;gap:8px"><span style="font-size:22px;font-weight:800;color:${rep.above>0?RP.amp.y.ink:RP.amp.g.ink}">${rep.above}%</span><span style="font-size:11.5px;font-weight:600;color:${RP.muted};line-height:1.3">der Messungen über dem Zielbereich (erhöht oder zu hoch)</span></div>`,';flex:1.35');
+  const mmRow=(lab,o,unit)=>`<div style="display:flex;align-items:baseline;justify-content:space-between;padding:5px 0"><span style="font-size:12px;font-weight:700;color:${RP.ink}">${lab}</span><span style="font-size:13px;font-weight:800;color:${RP.ink}">${o.min} – ${o.max}<span style="font-size:10px;font-weight:600;color:${RP.muted};margin-left:4px">${unit}</span></span></div>`;
+  const minmax=tile(mini('HÖCHST- & TIEFSTWERTE')+`<div style="border-top:1px solid ${RP.line}">${mmRow('Systolisch',rep.minmax.sys,'mmHg')}${mmRow('Diastolisch',rep.minmax.dia,'mmHg')}${puls?mmRow('Puls',rep.minmax.pul,'bpm'):''}</div>`,';flex:1');
+  const distRow=`<div class="rp-blk" style="display:flex;gap:13px;align-items:stretch">${verteilung}${minmax}</div>`;
+
+  const chartTile=tile(mini('BLUTDRUCKVERLAUF')+rpChart(rep,686,puls,acc)+rpLegend(puls));
+  const tableTile=`<div class="rp-tabletile" style="background:${RP.surf};border:1px solid ${RP.line};border-radius:16px;overflow:hidden"><div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:${RP.muted};padding:13px 15px 6px">ALLE MESSUNGEN · ${rep.count}</div><div style="padding:0 4px 8px">${rpTable(rep,{zebra:true})}</div></div>`;
+
+  return `<div class="rp-page" style="width:794px;min-height:1123px;background:#fff;color:${RP.ink};display:flex;flex-direction:column;padding:38px 40px 34px"><div style="display:flex;flex-direction:column;gap:13px;flex:1">${header}${gesamt}${tageszeit}${distRow}${chartTile}${tableTile}</div>${rpFoot(rep)}</div>`;
+}
+/* ---- A4-Seite 2 (Anhang, Querformat): nur das Detail-Diagramm, füllend ---- */
+function rpLandscape(rep){
+  const acc=rpAcc(), puls=reportState.puls;
+  const header=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div style="display:flex;align-items:center;gap:12px"><div style="width:34px;height:34px;border-radius:9px;background:${acc};display:grid;place-items:center;flex:none">${rpMark(20,'#fff')}</div><div><div style="font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1">Blutdruck-Bericht · Anhang</div><div style="font-size:12px;font-weight:600;color:${RP.muted};margin-top:3px">Detaillierter Verlauf & alle Messwerte</div></div></div><div style="text-align:right"><div style="font-size:12.5px;font-weight:800;color:${RP.ink}">${rep.period}</div><div style="font-size:11px;font-weight:600;color:${RP.muted};margin-top:2px">${rep.count} Messungen</div></div></div>`;
+  const body=!rep.count
+    ? `<div style="flex:1;background:${RP.surf2};border-radius:16px;display:flex;align-items:center;justify-content:center;color:${RP.muted};font-size:14px;font-weight:600">Für den gewählten Zeitraum liegen keine Messungen vor.</div>`
+    : `<div style="flex:1;background:${RP.surf2};border-radius:16px;padding:15px 17px;display:flex;flex-direction:column"><div style="font-size:10px;font-weight:800;letter-spacing:.08em;color:${RP.muted};margin-bottom:10px">BLUTDRUCKVERLAUF · WERT & DATUM JE MESSPUNKT</div><div style="flex:1;display:flex;align-items:stretch">${rpChart(rep,1035,puls,acc,true)}</div>${rpLegend(puls)}</div>`;
+  return `<div class="rp-page rp-page-land" style="width:1123px;min-height:794px;background:#fff;color:${RP.ink};display:flex;flex-direction:column;padding:40px 44px 32px">${header}${body}${rpFoot(rep,'Seite 2 · Anhang',{noTod:true})}</div>`;
+}
+
+/* ---- Report-Screen: Menü (App-Theme) + Live-Vorschau + Druck-Container ---- */
+function renderReport(){
+  const {from,to}=rpRangeDates();
+  if(reportState.range==='custom'){ if(!reportState.from) reportState.from=rpIso(from); if(!reportState.to) reportState.to=rpIso(to); }
+  const rep=reportData(from,to);
+  const card=inner=>`<div class="rp-card">${inner}</div>`;
+  const lbl=t=>`<div class="rp-lbl">${t}</div>`;
+  const pill=(k,t)=>`<button class="rp-pill${reportState.range===k?' active':''}" data-rp="range" data-val="${k}" type="button">${t}</button>`;
+  const custom=reportState.range==='custom'
+    ? `<div class="rp-dates"><label class="rp-date">VON<input type="date" id="rpFrom" value="${reportState.from||''}"></label><label class="rp-date">BIS<input type="date" id="rpTo" value="${reportState.to||''}"></label></div>`
+    : '';
+  const zeit=card(lbl('ZEITRAUM')+`<div class="rp-period">${rep.period}</div><div class="rp-count">${rep.count} Messungen im Zeitraum</div><div class="rp-pills">${pill('30','30 Tage')}${pill('90','90 Tage')}${pill('custom','Eigener')}</div>${custom}`);
+  const swatch=l=>{ const on=reportState.accent===l; return `<button class="rp-swatch${on?' active':''}" data-rp="acc" data-val="${l}" title="${l}" type="button" style="--sw:${RP.acc[l]}">${on?'<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>':''}</button>`; };
+  const farbe=card(lbl('REPORT-FARBE')+`<div class="rp-swatches">${RP_ACC_ORDER.map(swatch).join('')}</div>`);
+  const tog=(k,t,sub)=>`<div class="rp-opt"><div class="rp-opt-txt"><div class="rp-opt-t">${t}</div>${sub?`<div class="rp-opt-s">${sub}</div>`:''}</div><button class="rp-toggle${reportState[k]?' on':''}" data-rp="toggle" data-val="${k}" type="button" role="switch" aria-checked="${reportState[k]?'true':'false'}"><span class="rp-knob"></span></button></div>`;
+  const opt=card(lbl('OPTIONEN')+tog('namen','Namensfeld zum Ausfüllen')+tog('puls','Puls einbeziehen')+tog('anhang','Anhangseite drucken','Detail-Diagramm im Querformat (Seite 2)'));
+  const preview=`<div class="rp-card rp-preview">${lbl('VORSCHAU')}<div class="rp-shot" id="rpShot1"><div class="rp-scaler" id="rpScaler1">${rpPage(rep)}</div></div>${reportState.anhang?`<div class="rp-anh-lbl">ANHANG · Seite 2 · Querformat</div><div class="rp-shot" id="rpShot2"><div class="rp-scaler" id="rpScaler2">${rpLandscape(rep)}</div></div>`:''}</div>`;
+  $('#rpBody').innerHTML=zeit+farbe+opt+preview;
+  $('#reportPrint').innerHTML=rpPage(rep)+(reportState.anhang?rpLandscape(rep):'');
+  rpScalePreview();
+}
+/* Vorschau: die naturgroßen A4-Seiten auf die Bildschirmbreite herunterskalieren. */
+function rpScalePreview(){
+  [['#rpShot1','#rpScaler1',794],['#rpShot2','#rpScaler2',1123]].forEach(cfg=>{
+    const shot=$(cfg[0]), sc=$(cfg[1]); if(!shot||!sc) return;
+    const w=shot.clientWidth; if(!w) return;
+    const k=w/cfg[2]; sc.style.transform='scale('+k+')';
+    const page=sc.firstElementChild; shot.style.height=((page?page.offsetHeight:cfg[2])*k)+'px';
+  });
+}
+/* Report öffnen: Zustand IMMER auf Standard zurücksetzen (flüchtig), dann als eigene Ebene öffnen. */
+function openReport(){
+  reportState={accent:'Kobalt',range:'30',from:null,to:null,puls:true,namen:true,anhang:false};
+  navPush('report',null);
+}
+/* Bedienung: eine delegierte Klick-/Change-Behandlung am Screen (überlebt das Neu-Rendern des Körpers). */
+$('#tab-report').addEventListener('click',e=>{
+  const t=e.target.closest('[data-rp]'); if(!t) return;
+  const a=t.dataset.rp;
+  if(a==='back'){ navBack(); return; }
+  if(a==='print'){ window.print(); return; }
+  if(a==='range'){ if(reportState.range!==t.dataset.val){ reportState.range=t.dataset.val; renderReport(); } return; }
+  if(a==='acc'){ if(reportState.accent!==t.dataset.val){ reportState.accent=t.dataset.val; renderReport(); } return; }
+  if(a==='toggle'){ const k=t.dataset.val; reportState[k]=!reportState[k]; renderReport(); }
+});
+$('#tab-report').addEventListener('change',e=>{
+  if(e.target.id==='rpFrom'){ reportState.from=e.target.value; renderReport(); }
+  else if(e.target.id==='rpTo'){ reportState.to=e.target.value; renderReport(); }
+});
+window.addEventListener('resize',()=>{ if(currentTab==='report') rpScalePreview(); });
+$('#rpOpenChart').addEventListener('click',openReport);                                    // Einstieg: Diagramm-Kopf
+$('#mReport').addEventListener('click',()=>{ const d=$('#menuDlg'); if(d&&d.open) d.close(); openReport(); });  // Einstieg: Menü → Daten
+
 /* ---------- App-Steuerung ---------- */
 let currentTab='dashboard';
 function showTab(name){
@@ -1425,13 +1698,14 @@ function showTab(name){
   $$('.tab').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));
   $$('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
   // Screens mit eigenem Kopf (kein „Blutdruck"-Header): Dashboard, Erfassen, Verlauf, Detail, Diagramm
-  const hdr=$('header.app'); if(hdr) hdr.hidden=['dashboard','capture','table','detail','chart'].includes(name);
-  // Vollbild ohne Tab-Bar (eigene Fußzeile): Erfassen + Detail
-  const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture'||name==='detail')?'none':'';
+  const hdr=$('header.app'); if(hdr) hdr.hidden=['dashboard','capture','table','detail','chart','report'].includes(name);
+  // Vollbild ohne Tab-Bar (eigene Fußzeile): Erfassen + Detail + Arzt-Report
+  const nav=$('nav.bottom'); if(nav) nav.style.display=(name==='capture'||name==='detail'||name==='report')?'none':'';
   if(name==='dashboard') renderDashboard();
   if(name==='table') renderTable();
   if(name==='detail') renderDetail(detailId);
   if(name==='chart') renderChart();
+  if(name==='report') renderReport();
 }
 $$('.navbtn[data-tab]').forEach(b=>b.addEventListener('click',()=>goMainTab(b.dataset.tab)));   // Menü-Button (ohne data-tab) löst keinen Tab-Wechsel aus
 $('#fabCapture').addEventListener('click',()=>startCapture());                                 // zentraler +-Knopf → neue Messung
