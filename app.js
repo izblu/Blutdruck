@@ -1673,23 +1673,28 @@ function openReport(){
   reportState={accent:'Kobalt',range:'30',from:null,to:null,puls:true,namen:true,anhang:false};
   navPush('report',null);
 }
-/* Bedienung: eine delegierte Klick-/Change-Behandlung am Screen (überlebt das Neu-Rendern des Körpers). */
-$('#tab-report').addEventListener('click',e=>{
-  const t=e.target.closest('[data-rp]'); if(!t) return;
-  const a=t.dataset.rp;
-  if(a==='back'){ navBack(); return; }
-  if(a==='print'){ window.print(); return; }
-  if(a==='range'){ if(reportState.range!==t.dataset.val){ reportState.range=t.dataset.val; renderReport(); } return; }
-  if(a==='acc'){ if(reportState.accent!==t.dataset.val){ reportState.accent=t.dataset.val; renderReport(); } return; }
-  if(a==='toggle'){ const k=t.dataset.val; reportState[k]=!reportState[k]; renderReport(); }
-});
-$('#tab-report').addEventListener('change',e=>{
-  if(e.target.id==='rpFrom'){ reportState.from=e.target.value; renderReport(); }
-  else if(e.target.id==='rpTo'){ reportState.to=e.target.value; renderReport(); }
-});
+/* Bedienung: eine delegierte Klick-/Change-Behandlung am Screen (überlebt das Neu-Rendern des Körpers).
+   Alles defensiv verdrahtet (if-Guards): Sollten index.html und app.js einmal versionsverschieden aus
+   dem Cache geladen werden, darf ein fehlendes Element NICHT den Rest der App (Init/Navigation) killen. */
+const rpScreen=$('#tab-report');
+if(rpScreen){
+  rpScreen.addEventListener('click',e=>{
+    const t=e.target.closest('[data-rp]'); if(!t) return;
+    const a=t.dataset.rp;
+    if(a==='back'){ navBack(); return; }
+    if(a==='print'){ window.print(); return; }
+    if(a==='range'){ if(reportState.range!==t.dataset.val){ reportState.range=t.dataset.val; renderReport(); } return; }
+    if(a==='acc'){ if(reportState.accent!==t.dataset.val){ reportState.accent=t.dataset.val; renderReport(); } return; }
+    if(a==='toggle'){ const k=t.dataset.val; reportState[k]=!reportState[k]; renderReport(); }
+  });
+  rpScreen.addEventListener('change',e=>{
+    if(e.target.id==='rpFrom'){ reportState.from=e.target.value; renderReport(); }
+    else if(e.target.id==='rpTo'){ reportState.to=e.target.value; renderReport(); }
+  });
+}
 window.addEventListener('resize',()=>{ if(currentTab==='report') rpScalePreview(); });
-$('#rpOpenChart').addEventListener('click',openReport);                                    // Einstieg: Diagramm-Kopf
-$('#mReport').addEventListener('click',()=>{ const d=$('#menuDlg'); if(d&&d.open) d.close(); openReport(); });  // Einstieg: Menü → Daten
+const rpBtnChart=$('#rpOpenChart'); if(rpBtnChart) rpBtnChart.addEventListener('click',openReport);            // Einstieg: Diagramm-Kopf
+const rpBtnMenu=$('#mReport'); if(rpBtnMenu) rpBtnMenu.addEventListener('click',()=>{ const d=$('#menuDlg'); if(d&&d.open) d.close(); openReport(); });  // Einstieg: Menü → Daten
 
 /* ---------- App-Steuerung ---------- */
 let currentTab='dashboard';

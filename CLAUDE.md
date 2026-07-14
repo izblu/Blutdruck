@@ -112,7 +112,8 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     (der Report liest `settings.thr`; geändert wird unter Menü → Anzeige → „Zielbereich").
 - **Code-Struktur:** `index.html` (~415 Z.), `styles.css` (~755 Z.) und `app.js` (~1815 Z.); eingebunden
   per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
-  offline (Cache **`blutdruck-v21`**), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  offline (Cache **`blutdruck-v22`**, `fetch` revalidiert per `cache:'no-cache'` gegen alte Zwischen-
+  speicher), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
   keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen

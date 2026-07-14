@@ -1,7 +1,10 @@
 /* Blutdruck – Service Worker für Offline-Betrieb.
    Wird vom Browser automatisch genutzt; nicht manuell öffnen.
-   Strategie: network-first (online immer aktuell, offline aus dem Cache). */
-const CACHE = 'blutdruck-v21';
+   Strategie: network-first (online immer aktuell, offline aus dem Cache).
+   WICHTIG (v22): Der Netzwerk-Abruf revalidiert (cache:'no-cache'), sonst kann der Browser innerhalb
+   seiner Cache-Frist eine ALTE Datei als „frisch" durchreichen → neues index.html, aber altes
+   app.js/styles.css (kaputte/tote Knöpfe nach einem Update). Siehe fetch unten. */
+const CACHE = 'blutdruck-v22';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './fonts/hanken-grotesk.woff2'];
 
 self.addEventListener('install', e => {
@@ -19,7 +22,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' })   // beim Server rückfragen statt evtl. veraltete Browser-Cache-Kopie
       .then(resp => {
         const copy = resp.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy)).catch(() => {});

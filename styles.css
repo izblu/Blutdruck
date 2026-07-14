@@ -242,6 +242,9 @@ dialog::backdrop{background:rgba(15,23,42,.55)}
 .m-row-t{flex:1;font-size:12.5px;font-weight:700}
 .m-row-chev{width:17px;height:17px;color:var(--muted);flex:0 0 auto}
 .m-note{margin:8px 0 0;font-size:10.5px;color:var(--muted);font-weight:600}
+/* CSV-Knopf + sein Hinweis bilden eine Einheit; der nächste Knopf (Arzt-Report) bekommt klar mehr
+   Luft, damit der Hinweis sichtbar NICHT zum Arzt-Report gehört. */
+.m-note + .m-row{margin-top:14px}
 .m-danger{display:flex;align-items:center;gap:9px;width:100%;padding:11px 12px;border:none;border-radius:14px;background:var(--r-soft);color:var(--r-ink);font:inherit;font-size:13px;font-weight:800;cursor:pointer}
 .m-danger svg{width:17px;height:17px;flex:0 0 auto}
 @media (prefers-reduced-motion:reduce){
