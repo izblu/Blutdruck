@@ -25,10 +25,96 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 - Der Nutzer committet/pusht selbst über **GitHub Desktop**
 
 ## Aktueller Stand / bisherige Überarbeitungen
-- **Code-Struktur (Umbau Stufe 1, erledigt):** Aufgeteilt in `index.html` (Struktur, ~285 Z.),
-  `styles.css` (~290 Z.) und `app.js` (~790 Z.); eingebunden per `<link rel="stylesheet">` und
-  `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien offline (Cache
-  `blutdruck-v13`). Reines Verschieben – keine Logik geändert. Weiterhin kein Build, kein Framework.
+- **UI/UX-Modernisierung (Stufen 1–6, erledigt 2026-07-11):** Die gesamte sichtbare Schicht wurde
+  nach dem „Claude-Design"-Entwurf neu gebaut (reines HTML/CSS/JS, kein Build). **Datenmodell,
+  Speicher, Backup und Einstellungen blieben unverändert** – nur neu verkabelt. Kernpunkte:
+  - **Design-Tokens** (`:root` in [styles.css](styles.css)): Struktur
+    `--bg/--surf/--surf2/--ink/--muted/--line/--accent`, Ampel je Kategorie `--g/y/r-ink/-soft/-bar`,
+    Puls `--pulse-*`. Echter **Dark Mode** (per `@media (prefers-color-scheme)` **und**
+    `:root[data-theme]`) plus **Akzentfarben pro Modus** (`settings.accent`, Standard `kobalt`):
+    Hell und Dunkel haben je eine eigene, kuratierte 6-Farben-Liste (`ACCENTS_LIGHT`/`ACCENTS_DARK`
+    in app.js) statt gemeinsamer Töne nur auf-/abgehellt – einzelne Farben kommen bewusst nur in
+    einem Modus vor (z. B. „Iris" nur hell, „Aqua" nur dunkel). `--accent` (Fläche) **und**
+    **`--accent-ink`** (Schrift/Icon darauf – schwarz oder weiß, je nach Helligkeit der Fläche)
+    werden gemeinsam per JS gesetzt (`applyAccent`/`applyTheme`/`resolveAccent`); wählt man eine
+    Farbe, die im anderen Modus fehlt, fällt nur die **Anzeige** auf den Standard zurück (die
+    eigentliche Wahl bleibt gespeichert und gilt wieder, sobald der Modus zurückwechselt). Alte
+    Token-Namen (`--surface/--text/--border/--primary` …) bleiben als Aliasse. Schrift
+    **Hanken Grotesk** lokal (`fonts/`, offline – keine Google-Fonts-Anfrage).
+  - **Navigation:** feste Tab-Bar unten **Dashboard · Verlauf · [ + ] · Diagramm · Menü** mit zentralem
+    „+"-Knopf (FAB, → neue Messung); Screen-Router `showTab(name)`
+    (`dashboard/capture/table/detail/chart`) blendet die passenden Vollbild-Screens ein. „Tabelle"
+    heißt jetzt **„Verlauf"** (Screen-Id bleibt `#tab-table`).
+  - **Dashboard** (Startseite, `renderDashboard`): letzte Messung mit Ampel-Status, Ø 7 Tage + Trend
+    (vs. Vorwoche), Ø Puls, Ampel-Verteilungs-Ring 30 Tage. Kennzahlen nach
+    [dashboard-spezifikation.md](dashboard-spezifikation.md). **Einblend-Animation** beim Öffnen
+    (`animateDashboard`, per `requestAnimationFrame`, 680 ms, weiches Auslaufen): die großen Werte der
+    letzten Messung **zählen hoch** (Count-up) und der Verteilungs-Ring wird **kreisförmig aufgedeckt**
+    (der Farb-Kreis liegt als eigene Ebene `.ring-fill` unter der Mitte, eine `conic-gradient`-Maske
+    `--sweep` dreht von 0° auf 360°) samt hochzählender Prozentzahl. Respektiert
+    `prefers-reduced-motion` (dann sofort Endwert). Die übrigen Screens nutzen die
+    Entwurfs-Animationen (CSS-Keyframes, ebenfalls hinter `prefers-reduced-motion`):
+    **gestaffeltes Einblenden** (Dashboard-Karten via `nth-child`-Delay, Verlauf-Zeilen und
+    Diagramm-Punkte je mit `animation-delay` beim Rendern), **eingleitende Ampel-Marker** im
+    Detail (`markerGlide`, seitlicher Glide, versetzt 0,06/0,14 s) und **Bottom-Sheet-Slide**
+    fürs Öffnen von Menü/Anleitung (`#menuDlg/#helpDlg[open]` → `sheetSlide` + `scrimIn`).
+  - **Erfassen** (`#tab-capture`, geführte Eingabe): Sys → Dia → Puls einzeln über einen **eigenen
+    Ziffernblock**, große Vorschauzahl, Segment-Kacheln mit Ampel-Rückmeldung, Datum/Uhrzeit- und
+    Notiz-Sheet, Speichern-Häkchen. Verkabelt mit `addEntry`/`updateEntry`. Ersetzt die alte
+    Freitext-Eingabe **und** den früheren Bearbeiten-Dialog (`editDlg` entfiel).
+  - **Verlauf** (Liste) + **Detail-Screen:** chronologische Liste (Sys/Dia je in `catVal`-Farbe,
+    Zeilenpunkt = schlechterer), Zeitraum-Pillen 7/30/90 + eigener Von–Bis-Wähler; Zeile → Detail
+    (großer Wert in Ampelfarbe, Status, Position auf der Ampel-Skala, Kontext-Satz, Notiz;
+    Bearbeiten → Erfassen-Edit / Löschen → `askConfirm` + `removeEntry`).
+  - **Diagramm** (`renderChart`, SVG): Steuerleiste Sys/Dia/Beide + Puls-Umschalter + geteilter
+    Zeitraum; Verbindungslinien + **Ampel-Farbpunkte** (`catVal`) + gestrichelte Ø-Linie, **keine**
+    Schwellen-Linien/Zonen mehr. Ersetzt das alte 7-Linien-Diagramm samt `renderStats`. Der
+    Puls-Umschalter baut dafür **nicht** jedes Mal das ganze Diagramm neu: `setDiagPulseLayer`
+    fügt nur die rosa Puls-Ebene (`<g class="dg-pulse-g">` – Linie, Punkte, „bpm"-Beschriftung,
+    gebaut von `diagPulseLayer`) ein bzw. blendet sie aus (Fade-out per CSS, danach entfernt) und
+    verschiebt Höhe/Datumszeile der Grafik mit; die Sys-/Dia-Linien und -Punkte bleiben dabei
+    unangetastet und spielen ihre Einblend-Animation nicht erneut ab. `renderChart`/`buildDiagChart`
+    laufen weiterhin komplett bei Wechsel von Reihe oder Zeitraum.
+  - **Ampel pro Wert:** `catVal(v,y,r)` (Sys/Dia getrennt) neben der Gesamt-Ampel `category(e)`
+    (schlechterer von beiden). Schwellenwerte `settings.thr` – editierbar unter Menü → Anzeige →
+    „Zielbereich" (Ampel-Chips); „Design" dort für Hell/Dunkel/Auto + Akzentfarbe.
+  - **Obsolet:** die Schalter **„Werte-Ampel" (`colorDots`)** und **„Schwellenwert-Linien"
+    (`guideLines`)** sind aus der UI verschwunden (Verlauf färbt immer pro Wert, Diagramm nutzt immer
+    Farbpunkte); die Schlüssel bleiben in `settings`/Backup (Rückwärtskompatibilität), `updateThrEnabled`
+    entfiel. Toter Code aus dem Umbau wurde entfernt (u. a. `getSorted`, alte Tabellen-/Menü-CSS).
+- **Arzt-Report (Druck/PDF)** (erledigt 2026-07-14, aus dem „Claude-Design"-Entwurf umgesetzt):
+  ein aufbereiteter, **druckbarer** A4-Bericht für den Arztbesuch (`window.print`). **Reine
+  Datenaufbereitung, keine Diagnose/Bewertung.** Erreichbar über **zwei Einstiege**: Icon im
+  Diagramm-Kopf (`#rpOpenChart`) **und** Menü → Daten (`#mReport`), beide rufen `openReport()`.
+  - **Report-Menü** (eigener Vollbild-Screen `#tab-report`, geöffnet per `navPush('report')`):
+    Zeitraum-Pillen **30/90/Eigener** (+ Von–Bis-Datumsfelder), **Report-Farbe** (5 Swatches
+    Kobalt/Indigo/Petrol/Violett/Graphit), Schalter **Namensfeld/Puls einbeziehen/Anhangseite**,
+    **verkleinerte Live-Vorschau** der A4-Seite(n) und **Drucken**. Das Menü-Chrome folgt dem
+    App-Theme; die A4-Seiten sind **immer hell** (Druck auf Weiß).
+  - **A4-Seite 1 „Kompakt"** (`rpPage`): Kopf + Meta-Kachel (Zeitraum/Messungen, optional
+    Namens-/Geburtsdatumsfeld), **Gesamt-Durchschnitt gesplittet** (Sys/Dia + Ampel-Chip · Puls),
+    **Tageszeit** (morgens/tagsüber/abends, „—" wenn leer), **Ampel-Verteilung als Ring/Donut** +
+    „% über Ziel" neben **Höchst/Tiefst**, **Verlaufs-Diagramm**, **Wertetabelle** (Sys = gefüllte
+    Scheibe, Dia = hohler Ring), **Fußnote** (angewendete Grenzwerte + Tageszeit-Definition +
+    Haftungshinweis). **Anhang „Seite 2" (Querformat, `rpLandscape`)** nur auf Wunsch: großes
+    Detail-Diagramm mit **Wert + Datum je Messpunkt**.
+  - **Technik:** `reportData(from,to)` bündelt alle Kennzahlen aus **vorhandener** Logik
+    (`meanKey`/`category`/`catValFor`/`todOf`/`roundTo100`, Grenzwerte `settings.thr`); eigener
+    Bereichsfilter, **nicht** das geteilte `filters`-Objekt. Feste helle Palette `RP` (Ausdruck
+    theme-unabhängig hell); **eigene** Grafik `rpChart` (zeit-proportionale X-Achse, `detailed`-Modus
+    für Seite 2) – das App-Diagramm `buildDiagChart` bleibt unberührt. Der Report-Zustand
+    (`reportState`) ist **bewusst flüchtig**: bei jedem Öffnen auf Standard (Kobalt, 30 Tage,
+    Puls+Namensfeld an, Anhang aus), **nichts** landet in `settings`/Backup. **Druck:** `@media print`
+    zeigt nur den Container `#reportPrint` (naturgroße Seiten) über **benannte `@page`** (portrait +
+    landscape für den Anhang), `print-color-adjust:exact`, `break-inside`-Schutz gegen unschöne
+    Umbrüche. **Bewusst (noch) nicht:** ein **Teilen-Knopf** (build-frei nicht sauber; Weg =
+    „Drucken → Als PDF speichern → teilen") und ein **zweiter Grenzwerte-Editor** im Report-Menü
+    (der Report liest `settings.thr`; geändert wird unter Menü → Anzeige → „Zielbereich").
+- **Code-Struktur:** `index.html` (~415 Z.), `styles.css` (~755 Z.) und `app.js` (~1815 Z.); eingebunden
+  per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
+  offline (Cache **`blutdruck-v22`**, `fetch` revalidiert per `cache:'no-cache'` gegen alte Zwischen-
+  speicher), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
+  keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
   `localStorage` als Spiegel/Fallback und einmaliger automatischer Migration. Einstellungen liegen
   im `meta`-Store unter dem Schlüssel `'settings'` (`idbGetMeta`/`idbSetMeta`); nach dem Laden aus
@@ -60,7 +146,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     heruntergeladen wird) als breiter Knopf **unter** beiden Karten – übergreifend für beide Methoden.
   - **Backup-Format (v2):** Die Datei enthält jetzt `{app, version, exportedAt, entries, settings}`
     statt nur eines reinen `entries`-Arrays (`backupData()`/`backupSettings()`). Gesichert werden nur
-    die **Vorlieben** (`colorDots`, `guideLines`, `theme`, `reminderDays`, `thr`) – geräte-interne
+    die **Vorlieben** (`colorDots`, `guideLines`, `theme`, `accent`, `reminderDays`, `thr`) – geräte-interne
     Erinnerungs-Merker (`firstDirtyAt`, `snoozeUntil`) nicht. Ältere Backups (reines Array) bleiben
     les- und wiederherstellbar; `mergeEntriesFromData` erkennt beide Formen.
   - **Einstellungen-Rückfrage beim Wiederherstellen** (`#restoreDlg`, eigenes Fenster statt
@@ -70,14 +156,15 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     von `offerSettingsRestore()`, geteilt von „Wiederherstellen" (`importJSON`) und
     „Auswählen"/„Ändern" (`pickBackupFile`). Messwerte werden in jedem Fall zusammengeführt.
 - **Menü:** als **klappbare Abschnitte** in fester Reihenfolge **Backup · Daten · Anzeige** plus
-  „Anleitung". Geöffnet über das **„Menü"-Icon unten rechts in der Tab-Bar** (Erfassen · Tabelle ·
+  „Anleitung". Geöffnet über das **„Menü"-Icon in der Tab-Bar** (Dashboard · Verlauf · [ + ] ·
   Diagramm · Menü). Im Abschnitt „Backup" stehen die zwei Gruppen (Automatisches/Manuelles Backup)
   als **abgesetzte Karten** (`.grp-card`, Überschrift `.grp-head`). Das Menü-Fenster ist schmaler als der
   Bildschirm, hat eine eigene Hintergrundfarbe (`--menu-bg`) und lässt ringsum Rand zum Raustippen.
   Beim Öffnen eines Abschnitts ist nur der **Inhalt scrollbar** – Kopf- und Fußleiste bleiben fest
   (offenes Fenster als senkrechter Flex-Container, `dialog[open]`), sodass „Menü schließen" nie
   abgeschnitten wird. **Keine Trennlinien** – der aufgeklappte Abschnitt hebt sich als **weiße Karte**
-  mit Schatten ab; **immer nur ein Abschnitt offen** (einen anderen öffnen schließt den vorigen). Das
+  mit Schatten ab (Karte `--surf`, das Abschnitts-Icon wird akzent-getönt); **immer nur ein Abschnitt
+  offen** (einen anderen öffnen schließt den vorigen). Oben eine **Griffleiste** (`.dlg-grab`); das
   Fenster sitzt **unten am Bildschirmrand** (daumenfreundlich) und schließt nur bei echtem Tippen auf
   die Backdrop-Fläche (`e.target===dialog`). Aus der Anleitung führt ein „‹ Zurück"-Button wieder ins
   Menü; Schließen-Buttons heißen „Menü schließen".
@@ -89,8 +176,9 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   (belegt von Kapazität · Prozent, sofern der Browser eine Quota liefert).
   Der frühere Persistenz-Status/„Aktivieren"-Link entfiel (dauerhafter Speicher wird beim Start
   automatisch angefordert).
-- **Anleitung:** umgangssprachliches Hilfe-Pop-up (`helpDlg`) mit 10 Abschnitten, inkl.
-  Automatischem Backup, Statistik-Hinweis und App-Installation.
+- **Anleitung:** umgangssprachliches Hilfe-Pop-up (`helpDlg`), an die neue Bedienung angepasst
+  (geführte Eingabe, Dashboard, Verlauf/Detail, neues Diagramm, Automatisches/Manuelles Backup,
+  Aussehen/Akzentfarbe, App-Installation).
 - **Fehler:** Wenn der Speicher voll ist (QuotaExceededError), erscheint ein Hinweis statt
   stillem Fehlschlag.
 - **Meldungen (Toasts):** kurze Rückmeldungen unten als farbige Karte mit Icon in drei Kategorien –
@@ -110,13 +198,13 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   Info-Symbol) und `requireCheck` (Pflicht-Häkchen – hält den Bestätigen-Knopf deaktiviert, bis
   angekreuzt; eigenes Kästchen: rot umrandet, gerundet, ohne Füllung). Der Meldungstext ist bewusst
   **gedämpft** (`--muted`), hervorgehobene Teile via `<b>` in `--text`. Drei Aufrufstellen:
-  **Eintrag löschen** (`#edDelete`) mit Eintrags-Vorschau (Datum + Werte in `--c-sys/-dia/-pulse`) und
-  rotem „Löschen"; **Teilen-Fallback** in `shareBackup()` (amber, blaues „Speichern", Diagnose-Info in
+  **Eintrag löschen** (`#detDelete` im Detail-Screen) mit Eintrags-Vorschau (Datum + Werte in
+  Ampelfarbe) und rotem „Löschen"; **Teilen-Fallback** in `shareBackup()` (amber, blaues „Speichern", Diagnose-Info in
   „Technische Details" verstaut); **Alle Daten löschen** (`clearAllData()`) mit fetter Anzahl,
   Info-Zeile zur erhaltenen Backup-Datei und Bestätigungs-Häkchen. Aufräumen des Zusatz-Blocks
   (`#confirmExtra`) passiert beim **Aufbau**, nicht im `close`-Handler (sonst könnte ein verzögertes
-  Schließen-Ereignis frischen Inhalt leeren). `#confirmDlg` steht im HTML **nach** `editDlg`/`menuDlg`
-  (Toast-im-Dialog-Mechanismus). Die bestehenden Erfolgs-Toasts nach der Aktion bleiben erhalten.
+  Schließen-Ereignis frischen Inhalt leeren). `#confirmDlg` steht im HTML **nach** `menuDlg`/`helpDlg`/
+  `restoreDlg` (Toast-im-Dialog-Mechanismus). Die bestehenden Erfolgs-Toasts nach der Aktion bleiben erhalten.
 
 ## Namens-Konvention (Backup vs. CSV)
 „Backup …" = vollständige Sicherung/Wiederherstellung (Dateiendung **.txt**, Inhalt JSON, originalgetreu;
@@ -125,33 +213,36 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
 
 ## Geparkte Aufgaben
 
-Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
+Stand 2026-07-11: Der UI/UX-Block ist umgesetzt (siehe „Aktueller Stand"); der Rest gegen die
+Codebase geprüft.
+Nachtrag 2026-07-12: Fünf weitere Aufgaben geparkt (Medikamenten-Erinnerung + Einnahme-Tracking,
+Anleitungs-Textkorrektur, Puls-Linien-Animation, Akzentfarben pro Modus) – siehe unten in „2. Weitere
+Features", markiert mit *(neu geparkt 2026-07-12)*.
+Nachtrag 2026-07-13: Puls-Linien-Animation und Akzentfarben pro Modus umgesetzt (siehe „Aktueller
+Stand") und unten entfernt; die übrigen drei aus dem 2026-07-12-Batch (Medikamenten-Erinnerung,
+Einnahme-Tracking, Anleitungs-Textkorrektur) bleiben geparkt.
+Nachtrag 2026-07-14: Arzt-Report (Druck/PDF) umgesetzt (siehe „Aktueller Stand") und aus „2. Weitere
+Features" entfernt.
 *Legende — Aufwand: klein / mittel / groß · Machbarkeit: problemlos / mit Hürde / heikel.*
 
-### 1. UI/UX-Modernisierung (zusammenhängender Block)
-*Design zuerst als Grundlage, dann die Komponenten gleich im neuen Look – nicht zweimal anfassen.*
-- **Design/Look modernisieren** — mittel · problemlos. Farben & Farbverläufe, Schrift(größen),
-  Icons/Bilder, Buttons. Läuft größtenteils über die zentralen CSS-Variablen (`:root` in
-  [styles.css](styles.css)), inkl. Dark Mode.
-- **Diagramm + Schwellenwert-Darstellung entschlacken** — mittel · problemlos. **Dringend.** Heute
-  zeichnet `renderChart` bis zu 7 Linien in eine Grafik (3 Messwerte + 4 gestrichelte Schwellen) →
-  unübersichtlich. Mögliche Richtungen: Schwellen als farbige Hintergrund-Zonen statt Linien;
-  Sys/Dia und Puls in getrennte Diagramme. Konkrete Richtung später am echten Bild (Vorschau)
-  entscheiden. Verzahnt mit dem 4-Zahlen-Schwellenwert-Editor, der dadurch evtl. schlanker wird.
-- **Statistik-Bereich zu „Dashboard" ausbauen & modernisieren** — mittel · problemlos. `renderStats`
-  + CSS aufwerten und zur Übersicht erweitern: letzter Wert mit Ampel-Status, Trend 7/30 Tage
-  (vs. Vorperiode), Verteilung grün/gelb/rot, Backup-Status. (Vereint „Statistik modernisieren"
-  und „Dashboard".)
-- **Filter für Tabelle und Diagramm vereinheitlichen** — mittel · mit Hürde. Heute hat die Tabelle
-  das volle Filterpanel, das Diagramm nur Zeitraum-Chips. Logik ist schon geteilt (`filters`,
-  `getFiltered`), aber `syncFilterInputs` greift feste IDs (`#f_*`) → für zwei Panels einen
-  geteilten Filter bzw. Klassen statt doppelter IDs nötig.
+### 1. UI/UX-Modernisierung — **erledigt (Stufen 1–6, 2026-07-11)**
+Komplett umgesetzt (Details unter „Aktueller Stand"): Design-Tokens/Dark Mode/Akzentfarben, neue
+Tab-Bar + Dashboard, geführte Erfassen-Eingabe, Verlauf-Liste + Detail-Screen, entschlacktes Diagramm
+(Variante A), Menü als Bottom-Sheet mit „Anzeige" (Zielbereich + Design). Verlauf und Diagramm teilen
+sich jetzt **denselben Zeitraum** (`applyVerlaufRange` + `filters.from/to`).
+
+**Offen geblieben (bewusst zurückgestellt):**
+- **Detail-Filter + Sortierung wieder einbauen** — mittel · mit Hürde. Der Verlauf hat heute nur den
+  **Zeitraum**-Filter (7/30/90 + Von–Bis), wie im Entwurf. Die frühere Tabelle konnte zusätzlich nach
+  **Wertebereichen** (Sys/Dia/Puls min–max) und **Notiz-Text** filtern und nach Spalten **sortieren**.
+  Die geteilte Filter-Basis existiert noch (`filters` mit `sysMin/…/note`, `getFiltered`) – es fehlt nur
+  die Bedienoberfläche. Bei Wiedereinführung an **beide** Ansichten (Verlauf + Diagramm) denken (ein
+  geteiltes Panel bzw. Klassen statt fester `#f_*`-IDs); die im Abschluss entfernte `getSorted`-Funktion
+  müsste dann neu angelegt werden.
 
 ### 2. Weitere Features
-- **Arzt-Report (Druck/PDF)** — mittel–groß · problemlos. Aufbereiteter, druck-/teilbarer Bericht:
-  Mittelwerte (idealerweise morgens/abends getrennt), Min/Max, Anteil über Zielwert, Verlaufsgrafik,
-  Werteliste – via `window.print` + Druck-CSS (build-frei). Reine Datenaufbereitung, **keine
-  Diagnose/Bewertung**. Geht über den CSV-Export (Rohdaten) hinaus.
+- **Arzt-Report (Druck/PDF)** — **erledigt 2026-07-14** (siehe „Aktueller Stand"). Aufbereiteter,
+  druckbarer A4-Bericht (Kompakt-Layout + Querformat-Anhang) via `window.print` + `@media print`.
 - **Auto-Wiederherstellung** — mittel · mit Hürde. Beim Start, wenn App leer **und** Datei verknüpft
   (`idbGetMeta('backupHandle')`): Berechtigung prüfen → bei `granted` lesen + `mergeEntriesFromData`.
   *Hürde:* Datei-Berechtigung erlischt oft nach Browser-Neustart und braucht eine Nutzer-Geste →
@@ -169,6 +260,35 @@ Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
     `mergeEntriesFromData`; Start-Sequenz `init → requestPersistence → initStorage`).
   - *Visualisierung:* Flows als **Grafiken** (build-frei, z. B. Mermaid in Markdown; Alternative SVG).
   Danach kann diese CLAUDE.md auf reinen Projektkontext verschlankt werden.
+- **Medikamenten-Erinnerung (Einnahme)** *(neu geparkt 2026-07-12)* — groß · heikel. Zu einer festen
+  Uhrzeit eine **echte Handy-Benachrichtigung** auslösen (mit **Ton** und Eintrag im
+  Benachrichtigungs-Menü / „Pull-down"), auch wenn die App gerade **nicht offen** ist.
+  *Kernhürde:* Eine reine PWA **ohne Server** kann eine zeitgesteuerte Benachrichtigung im **Hintergrund**
+  **nicht zuverlässig** garantieren. Bausteine/Wege (Verfügbarkeit **vor** der Umsetzung prüfen):
+  - **Benachrichtigungs-Erlaubnis** (`Notification.requestPermission`) + Service Worker
+    (`registration.showNotification`) – Grundlage für jede Variante.
+  - **Zeit-Auslöser lokal:** eine geplante Benachrichtigung ohne Server (Notification-Trigger,
+    `TimestampTrigger`) wäre ideal, ist aber experimentell und **nicht überall** verfügbar (v. a.
+    iOS/Safari stark eingeschränkt) → unsicher.
+  - **Web Push** (mit Server + VAPID-Schlüssel) wäre zuverlässiger, **widerspricht** aber dem Grundsatz
+    „kein Server / kein Build".
+  - Solange die App **offen** ist, geht eine Erinnerung per Timer (`setTimeout`) problemlos – nur eben
+    nicht im Hintergrund. Für eine „wecker-echte" Erinnerung bräuchte es evtl. eine **native Hülle**
+    (TWA/Capacitor) → großer Schritt weg von der reinen PWA.
+  - **Vorgehen:** zuerst **Machbarkeit klären**, dann Umfang festlegen (ggf. Android/Chromium zuerst,
+    iOS später bzw. eingeschränkt), inkl. Bedienoberfläche für Uhrzeit(en)/Dosis.
+- **Einnahme-Tracking** *(neu geparkt 2026-07-12 – Erweiterung der Medikamenten-Erinnerung)* — mittel ·
+  problemlos (für sich allein). Festhalten, **ob die Medikamente heute schon genommen** wurden
+  (Status „genommen/offen", Abhaken, kleiner Verlauf). Reine Daten + Bedienoberfläche und passt zum
+  bestehenden Muster (eigener Bereich in der Browser-Datenbank (IndexedDB), ins Backup aufnehmen). Hängt
+  inhaltlich an der Erinnerung, ist aber **technisch unabhängig** umsetzbar (auch ohne Hintergrund-
+  Benachrichtigung nutzbar).
+- **Anleitungs-Text: Backup-Sicherheit richtigstellen** *(neu geparkt 2026-07-12)* — klein · problemlos.
+  Der Hilfe-Text (`helpDlg` in [index.html](index.html)) suggeriert, dass Automatisches/Manuelles Backup
+  vor **Geräteverlust** schützt. Das stimmt nicht: Die Backup-Datei liegt weiterhin **nur auf dem Handy**.
+  Erst **„Backup teilen"** und Ablage an einem **dritten Ort** (NAS, Google Drive o. Ä.) ist wirklich
+  verlustsicher. Text entsprechend **korrigieren/ergänzen** (evtl. zusätzlich ein kurzer Hinweis direkt in
+  der Backup-Sektion des Menüs).
 
 ### 3. Zurückgestellt (niedrige Priorität)
 - **Umbau Stufe 2 – JS in Module** (`storage.js`/`backup.js`/`chart.js`/`ui.js`, eingebunden per
@@ -176,7 +296,8 @@ Stand 2026-07-01 gegen die Codebase geprüft und neu nach Priorität geordnet.
   gegenseitiger Abhängigkeiten, allen voran Backup/Auto-Backup und Einstellungen/Theme, die quer
   durch mehrere künftige Module greifen würden). War bisher an Profile gekoppelt, damit Speicher/
   Backup nicht zweimal umgebaut werden – dieser Grund entfällt, da Profile gestrichen ist. Bleibt
-  für sich genommen sinnvoll: `app.js` ist mit ~790 Zeilen noch überschaubar, würde aber mit jeder
+  für sich genommen sinnvoll: `app.js` ist mit ~1360 Zeilen (nach der UI-Modernisierung deutlich
+  gewachsen) nicht mehr ganz so überschaubar und würde mit jeder
   weiteren Funktion unübersichtlicher, und eine Aufteilung nach Zuständigkeit passt zum bisherigen
   Vorgehen (siehe Stufe 1). Keine neue technische Hürde durch `type="module"`: Die App verlangt als
   PWA ohnehin einen http(s)/localhost-Kontext (wegen des Service Workers), das sonst übliche
