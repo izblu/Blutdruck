@@ -4,7 +4,7 @@
    WICHTIG (v22): Der Netzwerk-Abruf revalidiert (cache:'no-cache'), sonst kann der Browser innerhalb
    seiner Cache-Frist eine ALTE Datei als „frisch" durchreichen → neues index.html, aber altes
    app.js/styles.css (kaputte/tote Knöpfe nach einem Update). Siehe fetch unten. */
-const CACHE = 'blutdruck-v22';
+const CACHE = 'blutdruck-v23';
 const ASSETS = ['./', './index.html', './styles.css', './app.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './fonts/hanken-grotesk.woff2'];
 
 self.addEventListener('install', e => {

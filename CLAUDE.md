@@ -112,7 +112,7 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
     (der Report liest `settings.thr`; geändert wird unter Menü → Anzeige → „Zielbereich").
 - **Code-Struktur:** `index.html` (~415 Z.), `styles.css` (~755 Z.) und `app.js` (~1815 Z.); eingebunden
   per `<link rel="stylesheet">` und `<script src="./app.js" defer></script>`. `sw.js` cacht alle Dateien
-  offline (Cache **`blutdruck-v22`**, `fetch` revalidiert per `cache:'no-cache'` gegen alte Zwischen-
+  offline (Cache **`blutdruck-v23`**, `fetch` revalidiert per `cache:'no-cache'` gegen alte Zwischen-
   speicher), inkl. `fonts/hanken-grotesk.woff2`. Kein Build, kein Framework,
   keine Abhängigkeiten.
 - **Speicher:** Messwerte **und Einstellungen** liegen in der Browser-Datenbank (IndexedDB), mit
@@ -168,6 +168,10 @@ Der Nutzer ist **Programmier-Anfänger**. Deshalb:
   Fenster sitzt **unten am Bildschirmrand** (daumenfreundlich) und schließt nur bei echtem Tippen auf
   die Backdrop-Fläche (`e.target===dialog`). Aus der Anleitung führt ein „‹ Zurück"-Button wieder ins
   Menü; Schließen-Buttons heißen „Menü schließen".
+- **Zoom-Schutz (Mobil):** Eingabefelder haben mind. 16 px Schrift (sonst zoomt der Browser beim
+  Antippen hinein) und `*{touch-action:manipulation}` in `styles.css` verhindert den Doppeltipp-Zoom
+  (v. a. iOS/Safari, z. B. 2× dieselbe Ziffer im Ziffernblock). Zwei-Finger-Zoom bleibt bewusst
+  erlaubt (Barrierefreiheit); spezifischere Regeln (z. B. `pan-y` am Toast) gehen vor.
 - **Nicht unterstützte Funktionen** werden nicht versteckt, sondern **ausgegraut** mit kurzer
   Begründung (z. B. „Auf diesem Gerät nicht verfügbar").
 - **Daten** (Abschnitt, vormals „Verwalten"): „Als CSV exportieren (Excel)" (für die Auswertung),
